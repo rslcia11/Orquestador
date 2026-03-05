@@ -2,9 +2,12 @@ import React from 'react';
 import { ComputerNode, Alert } from '../types/orchestratorTypes';
 import { X, Activity, Cpu, HardDrive, Terminal, Clock, Shield, AlertTriangle, History, Cookie, Fingerprint, Play, Pause, RefreshCw, Server, CheckCircle2, ChevronRight, Plus, ExternalLink, Info } from 'lucide-react';
 
+
+
 interface NodeDrawerProps {
     node: ComputerNode | null;
     history: { time: string, cpu: number, ram: number }[];
+    logs: { timestamp: string; level: string; message: string }[];  // ← agregar
     onClose: () => void;
 }
 
@@ -33,16 +36,27 @@ export const EventDetailModal = ({ event, onClose }: { event: import('../types/o
         </div>
     );
 };
+// ── REEMPLAZA NodeItemDrawer completo en OrchestratorDrawers.tsx ──
 
-export const NodeItemDrawer = ({ node, history, onClose }: NodeDrawerProps) => {
+export const NodeItemDrawer = ({ node, history, logs, onClose }: NodeDrawerProps) => {
+    const logsEndRef = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: 'instant' });
+    }, [logs]);
+
     if (!node) return null;
 
     const isOnline = node.status === 'ONLINE';
+
+    // Calcular max para normalizar barras (evita que cpu=2% sea invisible)
+    const maxCpu = Math.max(...history.map(p => p.cpu), 1);
+    const maxRam = Math.max(...history.map(p => p.ram), 1);
 
     return (
         <>
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]" onClick={onClose} />
             <div className="fixed inset-y-0 right-0 w-full md:w-[450px] bg-[#0c0c0c] border-l border-white/10 z-[70] shadow-2xl flex flex-col animate-slide-in-right">
+
                 {/* HEADER */}
                 <div className="p-6 border-b border-white/5 flex justify-between items-start">
                     <div>
@@ -78,54 +92,105 @@ export const NodeItemDrawer = ({ node, history, onClose }: NodeDrawerProps) => {
                         </div>
                     </div>
 
-                    {/* CHARTS (Simulated with simple bars for now) */}
-                    <div className="space-y-6">
-                        <div>
-                            <h3 className="text-[10px] font-black text-[#444] uppercase tracking-widest mb-4 flex items-center gap-2">
+                    {/* CPU CHART */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-[10px] font-black text-[#444] uppercase tracking-widest flex items-center gap-2">
                                 <Cpu size={12} /> CPU Trend
                             </h3>
-                            <div className="h-24 flex items-end gap-1 border-b border-white/5 pb-1">
-                                {history.map((pt, i) => (
-                                    <div key={i} className="flex-1 bg-blue-500/20 hover:bg-blue-500 rounded-t-sm transition-colors group relative" style={{ height: `${pt.cpu}%` }}>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 text-[8px] bg-black px-1 rounded hidden group-hover:block whitespace-nowrap z-10 border border-white/10">
-                                            {pt.cpu.toFixed(1)}%
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            {history.length > 0 && (
+                                <span className="text-[10px] font-mono text-[#555]">
+                                    {history[history.length - 1].cpu}%
+                                </span>
+                            )}
                         </div>
-
-                        <div>
-                            <h3 className="text-[10px] font-black text-[#444] uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <HardDrive size={12} /> RAM Trend
-                            </h3>
-                            <div className="h-24 flex items-end gap-1 border-b border-white/5 pb-1">
-                                {history.map((pt, i) => (
-                                    <div key={i} className="flex-1 bg-purple-500/20 hover:bg-purple-500 rounded-t-sm transition-colors group relative" style={{ height: `${pt.ram}%` }}>
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 text-[8px] bg-black px-1 rounded hidden group-hover:block whitespace-nowrap z-10 border border-white/10">
-                                            {pt.ram.toFixed(1)}%
-                                        </div>
-                                    </div>
-                                ))}
+                        {history.length === 0 ? (
+                            <div className="h-24 flex items-center justify-center border border-dashed border-white/5 rounded-lg">
+                                <p className="text-[10px] text-[#333] uppercase">Sin datos aún...</p>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="h-24 flex items-end gap-[2px] bg-[#080808] border border-white/5 rounded-lg px-2 pt-2 pb-1 overflow-hidden">
+                                {history.map((pt, i) => {
+                                    // FIX: normalizar respecto al máximo del período
+                                    // Así cpu=39 usa ~65% del alto disponible y es visible
+                                    const heightPct = Math.max((pt.cpu / maxCpu) * 100, 4);
+                                    const isLast    = i === history.length - 1;
+                                    return (
+                                        <div key={i} title={`${pt.time}: ${pt.cpu}%`}
+                                            className={`flex-1 rounded-t-[2px] transition-all ${
+                                                isLast
+                                                    ? 'bg-[#3b82f6]'
+                                                    : pt.cpu > 80 ? 'bg-red-500/70' : 'bg-[#3b82f6]/50'
+                                            }`}
+                                            style={{ height: `${heightPct}%` }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
-                    {/* RECENT EVENTS */}
+                    {/* RAM CHART */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-[10px] font-black text-[#444] uppercase tracking-widest flex items-center gap-2">
+                                <HardDrive size={12} /> RAM Trend
+                            </h3>
+                            {history.length > 0 && (
+                                <span className="text-[10px] font-mono text-[#555]">
+                                    {history[history.length - 1].ram}%
+                                </span>
+                            )}
+                        </div>
+                        {history.length === 0 ? (
+                            <div className="h-24 flex items-center justify-center border border-dashed border-white/5 rounded-lg">
+                                <p className="text-[10px] text-[#333] uppercase">Sin datos aún...</p>
+                            </div>
+                        ) : (
+                            <div className="h-24 flex items-end gap-[2px] bg-[#080808] border border-white/5 rounded-lg px-2 pt-2 pb-1 overflow-hidden">
+                                {history.map((pt, i) => {
+                                    const heightPct = Math.max((pt.ram / maxRam) * 100, 4);
+                                    const isLast    = i === history.length - 1;
+                                    return (
+                                        <div key={i} title={`${pt.time}: ${pt.ram}%`}
+                                            className={`flex-1 rounded-t-[2px] transition-all ${
+                                                isLast
+                                                    ? 'bg-purple-500'
+                                                    : pt.ram > 85 ? 'bg-red-500/70' : 'bg-purple-500/50'
+                                            }`}
+                                            style={{ height: `${heightPct}%` }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* LOGS */}
                     <div>
                         <h3 className="text-[10px] font-black text-[#444] uppercase tracking-widest mb-4 flex items-center gap-2">
                             <Terminal size={12} /> Node Events
                         </h3>
-                        <div className="space-y-2 font-mono text-[9px] text-[#666] bg-[#050505] p-4 rounded-lg border border-white/5">
-                            <p>&gt; [10:00:01] System checks initiated...</p>
-                            <p>&gt; [10:00:02] CPU load nominal (23%)</p>
-                            <p className="text-amber-500">&gt; [10:05:00] Warning: Latency spike detected</p>
-                            <p>&gt; [10:05:05] Connection restored</p>
+                        <div className="space-y-1 font-mono text-[9px] bg-[#050505] p-4 rounded-lg border border-white/5 h-48 overflow-y-auto custom-scrollbar">
+                            {logs.length === 0 ? (
+                                <p className="text-[#444]">&gt; Sin logs disponibles...</p>
+                            ) : (
+                                logs.map((log, i) => (
+                                    <p key={i} className={
+                                        log.level === 'WARNING' ? 'text-amber-500' :
+                                        log.level === 'ERROR'   ? 'text-red-500'   :
+                                        log.level === 'SUCCESS' ? 'text-[#00ff88]' : 'text-[#666]'
+                                    }>
+                                        &gt; [{new Date(log.timestamp).toLocaleTimeString()}] {log.message}
+                                    </p>
+                                ))
+                            )}
+                            <div ref={logsEndRef} />
                         </div>
                     </div>
                 </div>
 
-                {/* FOOTER ACTIONS */}
+                {/* FOOTER */}
                 <div className="p-4 border-t border-white/5 bg-[#0a0a0a]">
                     <button className="w-full py-3 bg-[#00ff88] text-black font-black uppercase rounded-xl hover:bg-[#00cc6a] transition-colors text-xs flex items-center justify-center gap-2">
                         <Activity size={16} /> Run Diagnostics
@@ -177,8 +242,26 @@ export const AlertModal = ({ alert, onClose, onAck }: { alert: Alert | null, onC
 }
 
 // --- SESSION HISTORY MODAL ---
-export const SessionHistoryModal = ({ sessionId, history, onClose, onAction }: { sessionId: string | null, history: import('../types/orchestratorTypes').SystemEvent[], onClose: () => void, onAction: (type: 'NODE' | 'ALERT', id: string) => void }) => {
-    if (!sessionId) return null;
+// ── REEMPLAZA el componente SessionHistoryModal en OrchestratorDrawers.tsx ──
+//
+// BUG: OrchestratorTerminal pasa { isOpen, events, profileId, onClose }
+//      pero el componente esperaba  { sessionId, history, onClose, onAction }
+//      → los props nunca llegaban → modal nunca abría (crash silencioso).
+//
+// FIX: actualizar la firma para que coincida con lo que pasa el terminal.
+
+export const SessionHistoryModal = ({
+    isOpen,
+    events,
+    profileId,
+    onClose,
+}: {
+    isOpen:     boolean;
+    events:     import('../types/orchestratorTypes').SystemEvent[];
+    profileId:  string | null;
+    onClose:    () => void;
+}) => {
+    if (!isOpen || !profileId) return null;
 
     return (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
@@ -194,31 +277,37 @@ export const SessionHistoryModal = ({ sessionId, history, onClose, onAction }: {
                     </div>
                     <div>
                         <h3 className="text-lg font-black text-white uppercase tracking-tighter">Session History</h3>
-                        <p className="text-xs text-[#666] font-mono">ID: {sessionId}</p>
+                        <p className="text-xs text-[#666] font-mono">Profile ID: {profileId}</p>
                     </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2 mb-6">
-                    {history.length === 0 ? (
-                        <div className="text-center py-8 text-[#444] text-xs font-bold uppercase">No history events found</div>
+                    {events.length === 0 ? (
+                        <div className="text-center py-8 text-[#444] text-xs font-bold uppercase">
+                            No history events found
+                        </div>
                     ) : (
-                        history.map((ev, i) => (
+                        events.map((ev, i) => (
                             <div key={ev.id} className="flex gap-4 relative">
                                 <div className="flex flex-col items-center">
-                                    <div className={`size-3 rounded-full border-2 border-[#0c0c0c] z-10 ${ev.type === 'SUCCESS' ? 'bg-[#00ff88]' : ev.type === 'ERROR' ? 'bg-red-500' : 'bg-blue-500'}`} />
-                                    {i < history.length - 1 && <div className="w-px flex-1 bg-white/10 my-1" />}
+                                    <div className={`size-3 rounded-full border-2 border-[#0c0c0c] z-10 ${
+                                        ev.type === 'SUCCESS' ? 'bg-[#00ff88]' :
+                                        ev.type === 'ERROR'   ? 'bg-red-500'   : 'bg-blue-500'
+                                    }`} />
+                                    {i < events.length - 1 && <div className="w-px flex-1 bg-white/10 my-1" />}
                                 </div>
                                 <div className="flex-1 pb-4">
                                     <div className="flex justify-between items-start">
                                         <p className="text-xs font-bold text-[#ccc]">{ev.message}</p>
-                                        <span className="text-[9px] text-[#555] font-mono">{ev.timestamp}</span>
+                                        <span className="text-[9px] text-[#555] font-mono shrink-0 ml-2">{ev.timestamp}</span>
                                     </div>
-                                    <p className="text-[10px] text-[#666] mt-0.5 font-mono uppercase">{ev.type} • {ev.source}</p>
-
+                                    <p className="text-[10px] text-[#666] mt-0.5 font-mono uppercase">
+                                        {ev.type} • {ev.source}
+                                    </p>
                                     {ev.type === 'ERROR' && (
-                                        <button onClick={() => onAction('ALERT', ev.id)} className="mt-2 text-[9px] font-black text-red-500 hover:underline uppercase flex items-center gap-1">
-                                            <AlertTriangle size={10} /> View Alert
-                                        </button>
+                                        <p className="mt-1 text-[9px] font-black text-red-500 uppercase flex items-center gap-1">
+                                            <AlertTriangle size={10} /> Error en sesión
+                                        </p>
                                     )}
                                 </div>
                             </div>
@@ -226,19 +315,18 @@ export const SessionHistoryModal = ({ sessionId, history, onClose, onAction }: {
                     )}
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-white/5">
-                    <button onClick={onClose} className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl border border-white/5 text-xs uppercase transition-colors">
-                        Close
-                    </button>
-                    <button onClick={() => onAction('NODE', sessionId)} className="flex-1 py-3 bg-[#00ff88] hover:bg-[#00cc6a] text-black font-black rounded-xl text-xs uppercase transition-colors">
-                        Go to Node
+                <div className="pt-4 border-t border-white/5">
+                    <button
+                        onClick={onClose}
+                        className="w-full py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl border border-white/5 text-xs uppercase transition-colors"
+                    >
+                        Cerrar
                     </button>
                 </div>
             </div>
         </div>
     );
 };
-
 // --- JOB DRAWER ---
 export const JobDrawer = ({ job, onClose }: { job: import('../types/orchestratorTypes').Job | null, onClose: () => void }) => {
     if (!job) return null;
@@ -829,110 +917,363 @@ export const SessionStartModal = ({ isOpen, onClose, profiles, onStart }: { isOp
     );
 };
 
-// 7. CREATE PROFILE MODAL
-export const CreateProfileModal = ({ isOpen, onClose, onCreate }: { isOpen: boolean, onClose: () => void, onCreate: (data: any) => void }) => {
+
+// 7. CREATE PROFILE MODAL — 4 pasos: Info → Proxy → Dispositivo → Resumen
+export const CreateProfileModal = ({ isOpen, onClose, onCreate }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onCreate: (data: any) => void;
+}) => {
     const [step, setStep] = React.useState(1);
-    const [formData, setFormData] = React.useState({
-        name: '', owner: '', bookie: '', country: '', proxyType: 'RESIDENTIAL', os: 'Windows', screen: '1920x1080'
+    const [submitting, setSubmitting] = React.useState(false);
+
+    const [form, setForm] = React.useState({
+        // ── Paso 1: Info General ──────────────────────────────────
+        name:       '',
+        owner:      '',
+        bookie:     'Bet365',
+        sport:      'Fútbol',
+
+        // ── Paso 2: Proxy / Red ───────────────────────────────────
+        proxyType:       'RESIDENTIAL',   // RESIDENTIAL | MOBILE_4G | DATACENTER
+        country:         'ES',
+        city:            '',
+        rotationMinutes: 30,              // rotar cada N minutos (0 = manual)
+        warmupUrls:      'https://www.google.com\nhttps://www.youtube.com',
+
+        // ── Paso 3: Dispositivo / Huella ──────────────────────────
+        deviceType:   'DESKTOP',          // DESKTOP | TABLET | MOBILE
+        os:           'Windows',          // Windows | macOS | Android | iOS
+        screenRes:    '1920x1080',
+        language:     'es-ES',
+        autoFingerprint: true,
+        openOnCreate: false,              // abrir navegador al crear
     });
 
-    if (!isOpen) return null;
+    const set = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
-    const handleNext = () => setStep(step + 1);
-    const handleBack = () => setStep(step - 1);
+    const STEPS = ['Info General', 'Proxy / Red', 'Dispositivo', 'Resumen'];
+    const BOOKIES = ['Bet365', '1xBet', 'Betfair', 'Pinnacle', 'William Hill', 'Bwin', 'Unibet', 'Codere', 'Betway'];
+    const SPORTS  = ['Fútbol', 'Tenis', 'Baloncesto', 'Béisbol', 'Hockey', 'Fórmula 1', 'eSports'];
+    const COUNTRIES = [
+        { code: 'ES', name: '🇪🇸 España' },
+        { code: 'IT', name: '🇮🇹 Italia' },
+        { code: 'GB', name: '🇬🇧 Reino Unido' },
+        { code: 'DE', name: '🇩🇪 Alemania' },
+        { code: 'FR', name: '🇫🇷 Francia' },
+        { code: 'BR', name: '🇧🇷 Brasil' },
+        { code: 'MX', name: '🇲🇽 México' },
+        { code: 'US', name: '🇺🇸 Estados Unidos' },
+        { code: 'AR', name: '🇦🇷 Argentina' },
+    ];
+    const SCREENS_BY_DEVICE: Record<string, string[]> = {
+        DESKTOP: ['1920x1080', '2560x1440', '1440x900', '1366x768'],
+        TABLET:  ['1280x800',  '1024x768',  '768x1024'],
+        MOBILE:  ['390x844',   '414x896',   '375x812', '360x780'],
+    };
+
+    const fieldCls = 'w-full bg-[#080808] border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[#00ff88] outline-none transition-colors';
+    const labelCls = 'text-[10px] font-black text-[#555] uppercase tracking-widest';
+
+    const handleSubmit = async () => {
+        setSubmitting(true);
+        try {
+            await onCreate({
+                // Profile fields
+                name:    form.name,
+                owner:   form.owner,
+                bookie:  form.bookie,
+                sport:   form.sport,
+                // Proxy fields
+                proxy_type:       form.proxyType,
+                country:          form.country,
+                city:             form.city || null,
+                rotation_minutes: form.rotationMinutes,
+                warmup_urls:      form.warmupUrls.split('\n').map(u => u.trim()).filter(Boolean),
+                // Device/fingerprint fields
+                device_type:      form.deviceType,
+                os:               form.os,
+                screen_res:       form.screenRes,
+                language:         form.language,
+                auto_fingerprint: form.autoFingerprint,
+                open_on_create:   form.openOnCreate,
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const canNext = () => {
+        if (step === 1) return form.name.trim().length > 0 && form.owner.trim().length > 0;
+        if (step === 2) return form.country.length > 0;
+        return true;
+    };
+
+    if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-            <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-2xl relative z-[90] p-8 shadow-2xl animate-fade-in-up flex flex-col">
-                <button onClick={onClose} className="absolute right-4 top-4 text-[#666] hover:text-white"><X size={20} /></button>
+            <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-2xl relative z-[90] shadow-2xl animate-fade-in-up flex flex-col max-h-[90vh]">
+                <button onClick={onClose} className="absolute right-4 top-4 text-[#666] hover:text-white z-10"><X size={20} /></button>
 
-                <div className="mb-8">
-                    <h3 className="text-2xl font-black text-white italic tracking-tighter mb-2">Nuevo Perfil</h3>
-                    <div className="flex gap-2">
-                        {[1, 2, 3].map(i => (
-                            <div key={i} className={`h-1 flex-1 rounded-full ${step >= i ? 'bg-[#00ff88]' : 'bg-white/10'}`} />
+                {/* Header */}
+                <div className="p-8 pb-4">
+                    <h3 className="text-2xl font-black text-white italic tracking-tighter mb-4">Nuevo Perfil</h3>
+                    <div className="flex gap-2 mb-1">
+                        {STEPS.map((_, i) => (
+                            <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${step > i ? 'bg-[#00ff88]' : step === i + 1 ? 'bg-[#00ff88]/60' : 'bg-white/10'}`} />
                         ))}
                     </div>
+                    <p className="text-[10px] font-black text-[#444] uppercase tracking-widest mt-2">
+                        Paso {step} de {STEPS.length} — {STEPS[step - 1]}
+                    </p>
                 </div>
 
-                <div className="flex-1 space-y-6">
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto px-8 pb-2">
+
+                    {/* ─── PASO 1: INFO GENERAL ─── */}
                     {step === 1 && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                            <h4 className="text-sm font-black text-[#666] uppercase tracking-widest">1. Información General</h4>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-[#666] uppercase">Nombre del Perfil</label>
-                                    <input type="text" className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[#00ff88] outline-none" placeholder="Ej: Bet365-ES-Jose" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                    <label className={labelCls}>Nombre del Perfil *</label>
+                                    <input className={fieldCls} placeholder="Ej: Bet365-ES-Jose" value={form.name} onChange={e => set('name', e.target.value)} />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-[#666] uppercase">Propietario</label>
-                                    <input type="text" className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[#00ff88] outline-none" placeholder="Nombre del dueño" value={formData.owner} onChange={e => setFormData({ ...formData, owner: e.target.value })} />
+                                    <label className={labelCls}>Propietario *</label>
+                                    <input className={fieldCls} placeholder="Nombre del dueño" value={form.owner} onChange={e => set('owner', e.target.value)} />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-[#666] uppercase">Casa de Apuestas</label>
-                                    <select className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[#00ff88] outline-none" value={formData.bookie} onChange={e => setFormData({ ...formData, bookie: e.target.value })}>
-                                        <option value="">Seleccionar...</option>
-                                        <option value="Bet365">Bet365</option>
-                                        <option value="1xBet">1xBet</option>
-                                        <option value="Betfair">Betfair</option>
-                                        <option value="Pinnacle">Pinnacle</option>
+                                    <label className={labelCls}>Casa de Apuestas</label>
+                                    <select className={fieldCls} value={form.bookie} onChange={e => set('bookie', e.target.value)}>
+                                        {BOOKIES.map(b => <option key={b} value={b}>{b}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className={labelCls}>Deporte</label>
+                                    <select className={fieldCls} value={form.sport} onChange={e => set('sport', e.target.value)}>
+                                        {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
                             </div>
                         </div>
                     )}
 
+                    {/* ─── PASO 2: PROXY / RED ─── */}
                     {step === 2 && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                            <h4 className="text-sm font-black text-[#666] uppercase tracking-widest">2. Configuración de Red</h4>
-                            <div className="space-y-4">
-                                <div className="p-4 bg-white/5 border border-white/5 rounded-xl cursor-not-allowed opacity-50">
-                                    <p className="text-xs text-[#666] mb-2 font-bold uppercase">Tipo de Proxy</p>
-                                    <div className="flex gap-2">
-                                        <div className="px-4 py-2 bg-[#00ff88]/20 text-[#00ff88] rounded-lg text-xs font-black uppercase border border-[#00ff88]/20">Residencial (Auto)</div>
-                                        <div className="px-4 py-2 bg-black border border-white/10 text-[#666] rounded-lg text-xs font-black uppercase">Móvil 4G</div>
-                                    </div>
+                        <div className="space-y-5 animate-in fade-in slide-in-from-right-4">
+                            {/* Tipo de proxy */}
+                            <div className="space-y-2">
+                                <label className={labelCls}>Tipo de Proxy</label>
+                                <div className="flex gap-2">
+                                    {[
+                                        { val: 'RESIDENTIAL', label: 'Residencial', desc: 'Mayor confianza', color: '#00ff88' },
+                                        { val: 'MOBILE_4G',   label: 'Móvil 4G',   desc: 'Anti-detección', color: '#3b82f6' },
+                                        { val: 'DATACENTER',  label: 'Datacenter',  desc: 'Alta velocidad',  color: '#a855f7' },
+                                    ].map(t => (
+                                        <button
+                                            key={t.val}
+                                            onClick={() => set('proxyType', t.val)}
+                                            className={`flex-1 p-3 rounded-xl border text-left transition-all ${form.proxyType === t.val ? 'border-[#00ff88]/50 bg-[#00ff88]/5' : 'border-white/10 bg-white/[0.02] hover:bg-white/5'}`}
+                                        >
+                                            <p className={`text-xs font-black uppercase ${form.proxyType === t.val ? 'text-[#00ff88]' : 'text-white'}`}>{t.label}</p>
+                                            <p className="text-[10px] text-[#555] mt-0.5">{t.desc}</p>
+                                        </button>
+                                    ))}
                                 </div>
+                            </div>
+
+                            {/* País y ciudad */}
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-[#666] uppercase">Ubicación IP</label>
-                                    <select className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-sm text-white focus:border-[#00ff88] outline-none">
-                                        <option>España (Automatica)</option>
-                                        <option>Italia</option>
-                                        <option>UK</option>
+                                    <label className={labelCls}>País de la IP *</label>
+                                    <select className={fieldCls} value={form.country} onChange={e => set('country', e.target.value)}>
+                                        {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                                     </select>
                                 </div>
+                                <div className="space-y-2">
+                                    <label className={labelCls}>Ciudad (opcional)</label>
+                                    <input className={fieldCls} placeholder="Ej: Madrid, Barcelona..." value={form.city} onChange={e => set('city', e.target.value)} />
+                                </div>
+                            </div>
+
+                            {/* Rotación */}
+                            <div className="space-y-2">
+                                <label className={labelCls}>Rotación automática de IP</label>
+                                <div className="flex gap-2 flex-wrap">
+                                    {[
+                                        { val: 0,   label: 'Manual' },
+                                        { val: 10,  label: '10 min' },
+                                        { val: 30,  label: '30 min' },
+                                        { val: 60,  label: '1 hora' },
+                                        { val: 120, label: '2 horas' },
+                                    ].map(r => (
+                                        <button
+                                            key={r.val}
+                                            onClick={() => set('rotationMinutes', r.val)}
+                                            className={`px-4 py-2 rounded-lg border text-xs font-black uppercase transition-all ${form.rotationMinutes === r.val ? 'border-[#00ff88]/50 bg-[#00ff88]/10 text-[#00ff88]' : 'border-white/10 bg-white/[0.02] text-[#666] hover:text-white hover:bg-white/5'}`}
+                                        >
+                                            {r.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* URLs de warm-up */}
+                            <div className="space-y-2">
+                                <label className={labelCls}>URLs de Warm-up (una por línea)</label>
+                                <p className="text-[10px] text-[#444]">El navegador visitará estas URLs al crearse para generar historial natural.</p>
+                                <textarea
+                                    className={`${fieldCls} resize-none font-mono text-xs`}
+                                    rows={4}
+                                    placeholder="https://www.google.com&#10;https://www.youtube.com&#10;https://www.marca.com"
+                                    value={form.warmupUrls}
+                                    onChange={e => set('warmupUrls', e.target.value)}
+                                />
                             </div>
                         </div>
                     )}
 
+                    {/* ─── PASO 3: DISPOSITIVO / HUELLA ─── */}
                     {step === 3 && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                            <h4 className="text-sm font-black text-[#666] uppercase tracking-widest">3. Huella Digital</h4>
-                            <div className="bg-[#0a0a0a] border border-white/5 rounded-xl p-6 text-center">
-                                <Fingerprint size={48} className="mx-auto text-[#00ff88] mb-4" />
-                                <h3 className="text-lg font-black text-white italic">Generación Automática</h3>
-                                <p className="text-xs text-[#666] mt-2 mb-6">El sistema configurará Canvas, WebGL y AudioContext automáticamente basado en la IP.</p>
-                                <button onClick={() => window.open('https://adspower.com/config', '_blank')} className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white font-bold rounded-lg text-xs uppercase transition-colors flex items-center gap-2 mx-auto border border-white/5">
-                                    <ExternalLink size={14} /> Config en AdsPower
-                                </button>
+                        <div className="space-y-5 animate-in fade-in slide-in-from-right-4">
+                            {/* Tipo de dispositivo */}
+                            <div className="space-y-2">
+                                <label className={labelCls}>Tipo de Dispositivo</label>
+                                <div className="flex gap-3">
+                                    {[
+                                        { val: 'DESKTOP', icon: '🖥️', label: 'Desktop' },
+                                        { val: 'TABLET',  icon: '📱', label: 'Tablet'  },
+                                        { val: 'MOBILE',  icon: '📲', label: 'Mobile'  },
+                                    ].map(d => (
+                                        <button
+                                            key={d.val}
+                                            onClick={() => {
+                                                set('deviceType', d.val);
+                                                // Ajustar OS y resolución por defecto al cambiar dispositivo
+                                                if (d.val === 'MOBILE')  { set('os', 'Android'); set('screenRes', '390x844'); }
+                                                if (d.val === 'TABLET')  { set('os', 'Android'); set('screenRes', '1280x800'); }
+                                                if (d.val === 'DESKTOP') { set('os', 'Windows'); set('screenRes', '1920x1080'); }
+                                            }}
+                                            className={`flex-1 py-4 rounded-xl border text-center transition-all ${form.deviceType === d.val ? 'border-[#00ff88]/50 bg-[#00ff88]/5' : 'border-white/10 bg-white/[0.02] hover:bg-white/5'}`}
+                                        >
+                                            <div className="text-2xl mb-1">{d.icon}</div>
+                                            <p className={`text-xs font-black uppercase ${form.deviceType === d.val ? 'text-[#00ff88]' : 'text-[#888]'}`}>{d.label}</p>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
+
+                            {/* OS y resolución */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className={labelCls}>Sistema Operativo</label>
+                                    <select className={fieldCls} value={form.os} onChange={e => set('os', e.target.value)}>
+                                        {form.deviceType === 'DESKTOP'
+                                            ? ['Windows', 'macOS', 'Linux'].map(o => <option key={o}>{o}</option>)
+                                            : ['Android', 'iOS'].map(o => <option key={o}>{o}</option>)
+                                        }
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className={labelCls}>Resolución de Pantalla</label>
+                                    <select className={fieldCls} value={form.screenRes} onChange={e => set('screenRes', e.target.value)}>
+                                        {(SCREENS_BY_DEVICE[form.deviceType] || []).map(r => <option key={r}>{r}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className={labelCls}>Idioma del Navegador</label>
+                                    <select className={fieldCls} value={form.language} onChange={e => set('language', e.target.value)}>
+                                        {['es-ES', 'es-MX', 'en-US', 'en-GB', 'it-IT', 'de-DE', 'fr-FR', 'pt-BR'].map(l => <option key={l}>{l}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Opciones */}
+                            <div className="space-y-3">
+                                <label className={labelCls}>Opciones</label>
+                                {[
+                                    { key: 'autoFingerprint', label: 'Huella digital automática', desc: 'Canvas, WebGL y AudioContext se generan basados en la IP asignada' },
+                                    { key: 'openOnCreate',    label: 'Abrir navegador al crear',  desc: 'Lanza el navegador en la primera computadora disponible tras crear el perfil' },
+                                ].map(opt => (
+                                    <label key={opt.key} className="flex items-start gap-3 cursor-pointer group">
+                                        <div
+                                            className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center border flex-shrink-0 transition-all ${(form as any)[opt.key] ? 'bg-[#00ff88] border-[#00ff88]' : 'border-white/20 bg-white/5 group-hover:border-white/40'}`}
+                                            onClick={() => set(opt.key, !(form as any)[opt.key])}
+                                        >
+                                            {(form as any)[opt.key] && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-white">{opt.label}</p>
+                                            <p className="text-[10px] text-[#555]">{opt.desc}</p>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ─── PASO 4: RESUMEN ─── */}
+                    {step === 4 && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+                            <div className="bg-[#00ff88]/5 border border-[#00ff88]/20 rounded-xl p-4">
+                                <p className="text-[10px] font-black text-[#00ff88] uppercase tracking-widest mb-3">Resumen de configuración</p>
+                                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                                    {[
+                                        ['Perfil',      form.name],
+                                        ['Propietario', form.owner],
+                                        ['Bookie',      form.bookie],
+                                        ['Deporte',     form.sport],
+                                        ['Proxy',       form.proxyType.replace('_', ' ')],
+                                        ['País / Ciudad', `${form.country}${form.city ? ' / ' + form.city : ''}`],
+                                        ['Rotación IP', form.rotationMinutes === 0 ? 'Manual' : `${form.rotationMinutes} min`],
+                                        ['Dispositivo', `${form.deviceType} · ${form.os}`],
+                                        ['Resolución',  form.screenRes],
+                                        ['Idioma',      form.language],
+                                        ['URLs warm-up', `${form.warmupUrls.split('\n').filter(Boolean).length} URL(s)`],
+                                    ].map(([k, v]) => (
+                                        <div key={k} className="flex justify-between border-b border-white/5 py-1">
+                                            <span className="text-[#555] font-bold">{k}</span>
+                                            <span className="text-white font-black truncate max-w-[120px]">{v}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            {form.openOnCreate && (
+                                <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                                    <Play size={14} className="text-blue-400 flex-shrink-0" />
+                                    <p className="text-xs text-blue-300">El navegador se abrirá automáticamente en la primera computadora online al crear el perfil.</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
 
-                <div className="mt-8 flex justify-between">
+                {/* Footer */}
+                <div className="p-8 pt-4 flex justify-between items-center border-t border-white/5 mt-4">
                     {step > 1 ? (
-                        <button onClick={handleBack} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-bold uppercase rounded-xl text-xs transition-colors">Atrás</button>
+                        <button onClick={() => setStep(s => s - 1)} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-bold uppercase rounded-xl text-xs transition-colors">
+                            ← Atrás
+                        </button>
                     ) : <div />}
 
-                    {step < 3 ? (
-                        <button onClick={handleNext} className="px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-black uppercase rounded-xl text-xs transition-colors flex items-center gap-2">
+                    {step < 4 ? (
+                        <button
+                            onClick={() => setStep(s => s + 1)}
+                            disabled={!canNext()}
+                            className={`px-8 py-3 font-black uppercase rounded-xl text-xs transition-all flex items-center gap-2 ${canNext() ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-white/5 text-[#444] cursor-not-allowed'}`}
+                        >
                             Siguiente <ChevronRight size={14} />
                         </button>
                     ) : (
-                        <button onClick={() => onCreate(formData)} className="px-8 py-3 bg-[#00ff88] hover:bg-[#00cc6a] text-black font-black uppercase rounded-xl text-xs transition-colors shadow-[0_0_20px_rgba(0,255,136,0.2)]">
-                            Crear Perfil
+                        <button
+                            onClick={handleSubmit}
+                            disabled={submitting}
+                            className="px-8 py-3 bg-[#00ff88] hover:bg-[#00cc6a] text-black font-black uppercase rounded-xl text-xs transition-colors shadow-[0_0_20px_rgba(0,255,136,0.3)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {submitting ? <><RefreshCw size={14} className="animate-spin" /> Creando...</> : '✓ Crear Perfil'}
                         </button>
                     )}
                 </div>
