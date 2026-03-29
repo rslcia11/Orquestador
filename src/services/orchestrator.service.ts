@@ -341,14 +341,11 @@ class OrchestratorService {
     }
   }
 
-
   async getMyComputer() {
     const agent = await this.getLocalAgent();
 
     return fetchJSON(`${API}/admin/my-computer`, {
-      headers: agent
-        ? { "X-Computer-ID": agent.computer_id }
-        : {},
+      headers: agent ? { "X-Computer-ID": agent.computer_id } : {},
     });
   }
 
@@ -370,6 +367,23 @@ class OrchestratorService {
 
   async getProxyRotationHistory(proxyId: string) {
     return fetchJSON(`${API}/proxy-rotation/${proxyId}/history`);
+  }
+  
+  async getProfileHistoryFiltered(
+    profileId: string,
+    params: {
+      dateFrom?: string;
+      dateTo?: string;
+      limit?: number;
+    },
+  ) {
+    const q = new URLSearchParams();
+    if (params.dateFrom) q.set("date_from", params.dateFrom);
+    if (params.dateTo) q.set("date_to", params.dateTo);
+    q.set("limit", String(params.limit ?? 50));
+    return fetchJSON(
+      `${API}/admin/sessions/by-profile/${profileId}?${q.toString()}`,
+    );
   }
 }
 

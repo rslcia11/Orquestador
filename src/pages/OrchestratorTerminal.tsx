@@ -309,7 +309,7 @@ const OrchestratorTerminal: React.FC = () => {
                     type: 'ERROR',
                     message: '🔴 AdsPower no disponible — abre la aplicación en el agente',
                     source: `Computer #${event.computer_id}`,
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
                     meta: { raw: rawMsg },
                 }, ...prev.slice(0, 18)]);
                 fetchData();
@@ -323,7 +323,7 @@ const OrchestratorTerminal: React.FC = () => {
                     type: 'SUCCESS',
                     message: '🟢 AdsPower operativo nuevamente',
                     source: `Computer #${event.computer_id}`,
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
                     meta: { raw: rawMsg },
                 }, ...prev.slice(0, 18)]);
                 fetchData();
@@ -346,7 +346,7 @@ const OrchestratorTerminal: React.FC = () => {
                     type: event.log?.level === 'ERROR' ? 'ERROR' : 'INFO',
                     message: friendlyMsg,
                     source: `Computer #${event.computer_id}`,
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
                     meta: { raw: rawMsg },
                 }, ...prev.slice(0, 18)]);
 
@@ -357,7 +357,7 @@ const OrchestratorTerminal: React.FC = () => {
                         message: friendlyMsg,
                         source: `agent-${event.computer_id}`,
                         read: false,
-                        timestamp: new Date().toLocaleTimeString(),
+                        timestamp: new Date().toISOString(),
                     }, ...prev]);
 
                     setStats(prev => prev ? {
@@ -378,7 +378,7 @@ const OrchestratorTerminal: React.FC = () => {
                     ? `✅ Perfil creado en AdsPower — ${name}`
                     : `Iniciando creación de perfil — ${name}`,
                 source: `agent-${event.computer_id ?? 1}`,
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 18)]);
             if (autoRefreshRef.current) fetchData();
@@ -399,7 +399,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'SUCCESS' as const,
                 message: `✅ Perfil listo — ${event.name}`,
                 source: `agent-${event.computer_id ?? 1}`,
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 18)]);
             if (autoRefreshRef.current) fetchData();
@@ -413,7 +413,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'INFO' as const,
                 message: `🗑️ Perfil eliminado — ${name}`,
                 source: `agent-${event.computer_id ?? 1}`,
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 18)]);
             if (autoRefreshRef.current) fetchData();
@@ -436,7 +436,7 @@ const OrchestratorTerminal: React.FC = () => {
                                 setSelectedComputerId(data.computer_id.toString());
                             }
                         })
-                        .catch(() => {});
+                        .catch(() => { });
                 }
 
                 setEvents(prev => [{
@@ -444,7 +444,7 @@ const OrchestratorTerminal: React.FC = () => {
                     type: 'SUCCESS' as const,
                     message: `✅ Agente conectado — ${name}`,
                     source: 'agent',
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
                     meta: {},
                 }, ...prev.slice(0, 18)]);
 
@@ -466,7 +466,7 @@ const OrchestratorTerminal: React.FC = () => {
                     message: `Agente desconectado: ${name}`,
                     source: 'agent',
                     read: false,
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
                 }, ...prev]);
 
                 // Agregar al feed de eventos
@@ -475,7 +475,7 @@ const OrchestratorTerminal: React.FC = () => {
                     type: 'ERROR' as const,
                     message: `❌ Agente offline — ${name}`,
                     source: 'agent',
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
                     meta: {},
                 }, ...prev.slice(0, 18)]);
 
@@ -491,7 +491,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'INFO' as const,
                 message: event.message ?? `Sesión creada — ${event.profile}`,
                 source: event.agent_name ?? 'Agent',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: { session_id: event.session_id },
             }, ...prev.slice(0, 18)]);
 
@@ -517,7 +517,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'SUCCESS' as const,
                 message: event.message ?? `Sesión activa — ${event.profile}`,
                 source: event.agent_name ?? 'Agent',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: { session_id: event.session_id },
             }, ...prev.slice(0, 18)]);
 
@@ -543,7 +543,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'INFO' as const,
                 message: `Sesión cerrada — ${event.profile_name ?? `Perfil #${event.profile}`}: - ${event.duration_seconds ?? 0}s, ${(event.total_data_mb ?? 0).toFixed(1)}MB`,
                 source: event.agent_name ?? 'Agent',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: { session_id: event.session_id },
             }, ...prev.slice(0, 18)]);
 
@@ -601,7 +601,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'INFO' as const,
                 message: `🔄 ${event.message}`,
                 source: `Computer #${event.computer_id ?? 1}`,
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 18)]);
             return;
@@ -629,7 +629,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'SUCCESS' as const,
                 message: `✅ ${event.message}`,
                 source: 'auto_rotation',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 18)]);
 
@@ -653,7 +653,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'ERROR' as const,
                 message: `❌ ${event.message}`,
                 source: 'auto_rotation',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 18)]);
             return;
@@ -675,7 +675,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'ERROR' as const,
                 message: `Sesión crasheó — ${event.profile_name ?? `Perfil #${event.profile}`}: ${friendlyReason}`,
                 source: event.agent_name ?? 'Agent',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: { session_id: event.session_id },
             }, ...prev.slice(0, 18)]);
 
@@ -713,7 +713,7 @@ const OrchestratorTerminal: React.FC = () => {
                     type: s?.verified === s?.total ? 'SUCCESS' as const : 'WARNING' as const,
                     message: `✅ Verificación completada — ${s?.verified}/${s?.total} perfiles actualizados`,
                     source: 'verify_profiles',
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
                     meta: {},
                 },
                 ...prev.filter(e => e.id !== 'ws-verify-active').slice(0, 17),
@@ -743,7 +743,7 @@ const OrchestratorTerminal: React.FC = () => {
                     type: 'INFO' as const,
                     message: `Rotando proxies — ${s.optimal}✓ ${s.rotated}↺ ${s.failed}✗ / ${s.total}`,
                     source: 'proxy_rotation',
-                    timestamp: new Date().toLocaleTimeString(),
+                    timestamp: new Date().toISOString(),
                     meta: { log: [...rotationLogRef.current] },
                 };
 
@@ -768,7 +768,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'INFO' as const,
                 message: `🔄 ${event.message}`,
                 source: 'auto_rotation',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 18)]);
             return;
@@ -784,7 +784,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: (s.failed === 0 ? 'SUCCESS' : 'ERROR') as const,
                 message: `Rotación completada — ${s.optimal} óptimos · ${s.rotated} rotados · ${s.failed} fallidos`,
                 source: 'proxy_rotation',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: { log: capturedLog },
             };
 
@@ -859,7 +859,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'ERROR' as const,
                 message: '❌ Agente local no disponible — abre la app del agente en esta computadora para iniciar sesiones',
                 source: 'admin-panel',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 29)]);
             setAlerts(prev => [{
@@ -898,7 +898,7 @@ const OrchestratorTerminal: React.FC = () => {
                         message: `⚠️ Perfil "${p.name}" aún no está listo en AdsPower — espera que el agente lo procese`,
                         source: 'agent',
                         read: false,
-                        timestamp: new Date().toLocaleTimeString(),
+                        timestamp: new Date().toISOString(),
                     }, ...prev]);
                 }
             }
@@ -913,7 +913,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'INFO' as const,
                 message: `⏳ ${ok} sesión(es) enviadas al agente`,
                 source: 'admin-panel',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 29)]);
         }
@@ -930,7 +930,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'ERROR' as const,
                 message: msg,
                 source: 'admin-panel',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 29)]);
 
@@ -959,10 +959,10 @@ const OrchestratorTerminal: React.FC = () => {
             setProfiles(prev => prev.map(p => p.id === profileId
                 ? {
                     ...p,
-                    browserScore:     r.browser_score,
+                    browserScore: r.browser_score,
                     fingerprintScore: r.fingerprint_score,
-                    cookieStatus:     r.cookie_status,
-                    verifyResult:     r,
+                    cookieStatus: r.cookie_status,
+                    verifyResult: r,
                 }
                 : p
             ));
@@ -976,21 +976,9 @@ const OrchestratorTerminal: React.FC = () => {
         }
     };
 
-    const handleViewProfileHistory = async (profileId: string) => {
-        try {
-            const data = await orchestratorService.getProfileHistory(profileId);
-            setProfileHistoryData(data.items.map((s: any) => ({
-                id: s.id.toString(),
-                type: s.status === 'closed' ? 'SUCCESS' : s.status === 'crashed' ? 'ERROR' : 'INFO',
-                message: `${s.agent_name} — ${s.target_url ?? 'N/A'} (${s.duration_seconds ?? 0}s, ${(s.total_data_mb ?? 0).toFixed(1)} MB)`,
-                source: `Computer #${s.computer_id}`,
-                timestamp: s.requested_at,
-            })));
-            setSelectedProfileHistoryId(profileId);
-        } catch {
-            alert('No se pudo cargar el historial.');
-        }
-    };
+    const handleViewProfileHistory = useCallback((profileId: string) => {
+        setSelectedProfileHistoryId(profileId);
+    }, []);
 
     const handleAlertAck = async (id: number) => {
         await orchestratorService.ackAlert(id);
@@ -1020,7 +1008,7 @@ const OrchestratorTerminal: React.FC = () => {
             type: 'INFO' as const,
             message: `🗑️ Eliminando perfil "${profile.name}"...`,
             source: 'admin-panel',
-            timestamp: new Date().toLocaleTimeString(),
+            timestamp: new Date().toISOString(),
             meta: {},
         }, ...prev.slice(0, 29)]);
 
@@ -1032,7 +1020,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'SUCCESS' as const,
                 message: `✅ Perfil "${profile.name}" eliminado correctamente`,
                 source: 'admin-panel',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 29)]);
 
@@ -1046,7 +1034,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'ERROR' as const,
                 message: `❌ Error eliminando "${profile.name}": ${err.message}`,
                 source: 'admin-panel',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 29)]);
 
@@ -1079,7 +1067,7 @@ const OrchestratorTerminal: React.FC = () => {
                 type: 'INFO' as const,
                 message: 'Rotación de proxies iniciada...',
                 source: 'proxy_rotation',
-                timestamp: new Date().toLocaleTimeString(),
+                timestamp: new Date().toISOString(),
                 meta: {},
             }, ...prev.slice(0, 18)]);
             await orchestratorService.rotateAllProxies(selectedComputerId ?? undefined);
@@ -1099,7 +1087,7 @@ const OrchestratorTerminal: React.FC = () => {
     //         type: 'INFO' as const,
     //         message: `🔄 Rotando proxy de "${profile.name}"...`,
     //         source: 'admin-panel',
-    //         timestamp: new Date().toLocaleTimeString(),
+    //         timestamp: new Date().toISOString(),
     //         meta: {},
     //     }, ...prev.slice(0, 29)]);
 
@@ -1110,7 +1098,7 @@ const OrchestratorTerminal: React.FC = () => {
     //             type: 'SUCCESS' as const,
     //             message: `✅ Proxy rotado — "${profile.name}" → ${result.new_city ?? 'nueva sesión'}`,
     //             source: 'admin-panel',
-    //             timestamp: new Date().toLocaleTimeString(),
+    //             timestamp: new Date().toISOString(),
     //             meta: {},
     //         }, ...prev.slice(0, 29)]);
     //         // Actualizar tabla tras 2s
@@ -1121,7 +1109,7 @@ const OrchestratorTerminal: React.FC = () => {
     //             type: 'ERROR' as const,
     //             message: `❌ Error rotando proxy de "${profile.name}": ${err.message}`,
     //             source: 'admin-panel',
-    //             timestamp: new Date().toLocaleTimeString(),
+    //             timestamp: new Date().toISOString(),
     //             meta: {},
     //         }, ...prev.slice(0, 29)]);
     //     }
@@ -1318,7 +1306,7 @@ const OrchestratorTerminal: React.FC = () => {
                                                         type: 'INFO' as const,
                                                         message: 'Verificando perfiles — en proceso...',
                                                         source: 'verify_profiles',
-                                                        timestamp: new Date().toLocaleTimeString(),
+                                                        timestamp: new Date().toISOString(),
                                                         meta: {},
                                                     }, ...prev.slice(0, 18)]);
                                                     try {
@@ -1331,7 +1319,7 @@ const OrchestratorTerminal: React.FC = () => {
                                                             type: 'ERROR' as const,
                                                             message: `❌ Error al iniciar verificación: ${err.message}`,
                                                             source: 'verify_profiles',
-                                                            timestamp: new Date().toLocaleTimeString(),
+                                                            timestamp: new Date().toISOString(),
                                                             meta: {},
                                                         }, ...prev.filter(e => e.id !== 'ws-verify-active').slice(0, 17)]);
                                                     }
@@ -1412,9 +1400,9 @@ const OrchestratorTerminal: React.FC = () => {
                                                     {(visibleContent as ProfileItem[]).map(p => (
                                                         <ProfileRow
                                                             key={p.id}
-                                                                 profile={p}
-                                                                 connections={connections}
-                                                                 onHistory={() => handleViewProfileHistory(p.id)}
+                                                            profile={p}
+                                                            connections={connections}
+                                                            onHistory={() => handleViewProfileHistory(p.id)}
                                                             onSecurity={() => setSecurityProfile(p)}
                                                             onDelete={() => handleDeleteProfile(p.id)}
 
@@ -1530,7 +1518,7 @@ const OrchestratorTerminal: React.FC = () => {
                                     ? `🆕 Creando perfil "${data.name}" — enviado al agente`
                                     : `⏳ Perfil "${data.name}" en cola — agente offline`,
                                 source: 'admin-panel',
-                                timestamp: new Date().toLocaleTimeString(),
+                                timestamp: new Date().toISOString(),
                                 meta: {},
                             }, ...prev.slice(0, 29)]);
 
@@ -1542,7 +1530,7 @@ const OrchestratorTerminal: React.FC = () => {
                                 type: 'ERROR' as const,
                                 message: `❌ Error creando perfil"${data.name}"`,
                                 source: 'admin-panel',
-                                timestamp: new Date().toLocaleTimeString(),
+                                timestamp: new Date().toISOString(),
                                 meta: {},
                             }, ...prev.slice(0, 29)]);
                             setAlerts(prev => [{

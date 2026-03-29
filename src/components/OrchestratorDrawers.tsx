@@ -8,6 +8,7 @@ import {
     History, Cookie, Fingerprint, Play, Pause, RefreshCw, Server,
     CheckCircle2, ChevronRight, Plus, ExternalLink, Info
 } from 'lucide-react';
+import { orchestratorService } from '@/services/orchestrator.service';
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
 
@@ -365,23 +366,203 @@ export const AlertModal = ({
     );
 };
 
-// ─── SESSION HISTORY MODAL ───────────────────────────────────────────────────
-// Bug corregido: usaba `event` (singular) en lugar de `ev` dentro del .map()
+// ─────────────────────────────────────────────────────────────────────────────
+// SessionHistoryModal (versión con filtro de fechas)
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ─── SESSION HISTORY MODAL ───────────────────────────────────────────────────
-// Reemplaza el componente SessionHistoryModal en OrchestratorDrawers.tsx
+// ─── TIPOS INTERNOS ───────────────────────────────────────────────────────────
 
-// Helpers de fecha — añade esto junto a los otros helpers de formato en el archivo
-const formatSessionDate = (ts: string) => {
+interface DateRange {
+    start: Date | null;
+    end: Date | null;
+}
+
+// ─── CONSTANTES ───────────────────────────────────────────────────────────────
+
+const MONTHS_ES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+const DAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DateRangeCalendar
+// Calendario de selección de rango de fechas con tema oscuro y acento verde.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DateRangeCalendar: React.FC<{
+    range: DateRange;
+    onSelect: (date: Date) => void;
+}> = ({ range, onSelect }) => {
+
+    const today = React.useMemo(() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }, []);
+
+    const [view, setView] = React.useState({
+        y: today.getFullYear(),
+        m: today.getMonth(),
+    });
+    const [hover, setHover] = React.useState<Date | null>(null);
+
+    const goBack = () =>
+        setView(v => v.m === 0 ? { y: v.y - 1, m: 11 } : { ...v, m: v.m - 1 });
+    const goNext = () =>
+        setView(v => v.m === 11 ? { y: v.y + 1, m: 0 } : { ...v, m: v.m + 1 });
+
+    // Construir la cuadrícula del mes
+    const firstDoW = new Date(view.y, view.m, 1).getDay();
+    const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+
+    const cells: (Date | null)[] = [
+        ...Array(firstDoW).fill(null),
+        ...Array.from({ length: daysInMonth }, (_, i) => new Date(view.y, view.m, i + 1)),
+    ];
+
+    // ── Helpers de comparación ────────────────────────────────────────────────
+    const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+
+    const effectiveEnd: Date | null =
+        range.end ??
+        (range.start && hover && hover >= range.start ? hover : null);
+
+    const isStart = (d: Date) => !!range.start && sameDay(d, range.start);
+    const isEnd = (d: Date) => !!range.end && sameDay(d, range.end);
+    const isSingle = !!(range.start && range.end && sameDay(range.start, range.end));
+    const isInRange = (d: Date): boolean => {
+        if (!range.start || !effectiveEnd) return false;
+        return d > range.start && d < effectiveEnd;
+    };
+    const isTodayDate = (d: Date) => sameDay(d, today);
+
+    return (
+        <div className="w-full select-none">
+            {/* ── Navegación de mes ─────────────────────────────────────── */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
+                <button
+                    onClick={goBack}
+                    className="w-7 h-7 flex items-center justify-center text-lg leading-none text-[#666]
+                               hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                >
+                    ‹
+                </button>
+                <span className="text-[13px] font-black text-white tracking-wide">
+                    {MONTHS_ES[view.m]} {view.y}
+                </span>
+                <button
+                    onClick={goNext}
+                    className="w-7 h-7 flex items-center justify-center text-lg leading-none text-[#666]
+                               hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                >
+                    ›
+                </button>
+            </div>
+
+            <div className="px-4 pb-4 pt-2">
+                {/* ── Cabecera de días ─────────────────────────────────────── */}
+                <div className="grid grid-cols-7 mb-1">
+                    {DAYS_ES.map(d => (
+                        <div
+                            key={d}
+                            className="h-7 flex items-center justify-center
+                                       text-[9px] font-black text-[#3a3a3a] uppercase tracking-wider"
+                        >
+                            {d}
+                        </div>
+                    ))}
+                </div>
+
+                {/* ── Cuadrícula de días ───────────────────────────────────── */}
+                <div className="grid grid-cols-7">
+                    {cells.map((date, idx) => {
+                        if (!date) return <div key={`e-${idx}`} className="h-9" />;
+
+                        const dateStart = isStart(date);
+                        const dateEnd = isEnd(date);
+                        const inRange = isInRange(date);
+                        const future = date > today;
+                        const todayD = isTodayDate(date);
+
+                        // Semitransparencia de rango entre los extremos
+                        const showFull = inRange;
+                        const showRightHalf = dateStart && !isSingle &&
+                            !!(range.end || (hover && range.start && hover > range.start));
+                        const showLeftHalf = dateEnd && !isSingle;
+
+                        return (
+                            <div
+                                key={`d-${idx}`}
+                                className="relative h-9 flex items-center justify-center"
+                            >
+                                {/* Fondo de rango continuo */}
+                                {showFull && <div className="absolute inset-y-[3px] inset-x-0 bg-[#00ff88]/[0.12]" />}
+                                {showRightHalf && <div className="absolute inset-y-[3px] left-1/2 right-0 bg-[#00ff88]/[0.12]" />}
+                                {showLeftHalf && <div className="absolute inset-y-[3px] left-0 right-1/2 bg-[#00ff88]/[0.12]" />}
+
+                                <button
+                                    disabled={future}
+                                    onClick={() => !future && onSelect(date)}
+                                    onMouseEnter={() => !future && setHover(date)}
+                                    onMouseLeave={() => setHover(null)}
+                                    className={[
+                                        'relative z-10 w-8 h-8 rounded-full text-[11px] font-bold transition-all duration-150',
+                                        future
+                                            ? 'text-[#2a2a2a] cursor-not-allowed'
+                                            : 'cursor-pointer',
+                                        (dateStart || dateEnd)
+                                            ? 'bg-[#00ff88] text-black font-black shadow-[0_0_14px_rgba(0,255,136,0.45)]'
+                                            : '',
+                                        !dateStart && !dateEnd && todayD
+                                            ? 'ring-1 ring-[#00ff88]/60 text-[#00ff88]'
+                                            : '',
+                                        !dateStart && !dateEnd && inRange && !todayD
+                                            ? 'text-white'
+                                            : '',
+                                        !dateStart && !dateEnd && !inRange && !todayD && !future
+                                            ? 'text-[#999] hover:bg-white/10 hover:text-white'
+                                            : '',
+                                    ].filter(Boolean).join(' ')}
+                                >
+                                    {date.getDate()}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* ── Leyenda inferior ─────────────────────────────────────────── */}
+            {(range.start || range.end) && (
+                <div className="px-5 pb-3 flex justify-between items-center border-t border-white/5 pt-2">
+                    <span className="text-[9px] text-[#444] font-bold uppercase tracking-widest">Rango seleccionado</span>
+                    <span className="text-[10px] font-black text-[#00ff88] font-mono">
+                        {range.start
+                            ? range.start.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
+                            : '—'}
+                        {range.end && !sameDay(range.start!, range.end)
+                            ? ` → ${range.end.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`
+                            : ''}
+                    </span>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// HELPERS de formato (internos al componente)
+const _fmtSessionDate = (ts: string) => {
     try {
         const d = new Date(ts);
-        const date = d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-        const time = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        return `${date} · ${time}`;
+        return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+            + ' · '
+            + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
     } catch { return ts; }
 };
 
-const formatPageTime = (ts: string) => {
+const _fmtPageTime = (ts: string) => {
     try {
         return new Date(ts).toLocaleTimeString('es-ES', {
             hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -391,231 +572,501 @@ const formatPageTime = (ts: string) => {
 
 export const SessionHistoryModal = ({
     isOpen,
-    events,
+    events: _eventsIgnored = [],   // ya no usamos el prop, el modal es auto-fetch
     profileId,
     onClose,
 }: {
     isOpen: boolean;
-    events: SystemEvent[];   // SystemEvent importado del mismo archivo
+    events: SystemEvent[];     // mantenemos la firma para retrocompatibilidad
     profileId: string | null;
     onClose: () => void;
 }) => {
-    const [expandedId, setExpandedId] = React.useState<string | null>(null);
-    // Cache: ev.id → array de páginas visitadas
-    const [pagesCache, setPagesCache] = React.useState<Record<string, any[]>>({});
-    const [loadingId, setLoadingId] = React.useState<string | null>(null);
+    // ── Estado del filtro de fechas ───────────────────────────────────────────
+    type DateMode = 'today' | 'range';
+    const [dateMode, setDateMode] = React.useState<DateMode>('today');
+    const [range, setRange] = React.useState<DateRange>({ start: null, end: null });
+    const [showCal, setShowCal] = React.useState(false);
+    const calContainerRef = React.useRef<HTMLDivElement>(null);
 
-    // Reset al cerrar/abrir
+    // ── Datos auto-fetched ────────────────────────────────────────────────────
+    const [sessions, setSessions] = React.useState<SystemEvent[]>([]);
+    const [totalCount, setTotalCount] = React.useState(0);
+    const [fetching, setFetching] = React.useState(false);
+
+    // ── Acordeón de visitas ───────────────────────────────────────────────────
+    const [expandedId, setExpandedId] = React.useState<string | null>(null);
+    const [pagesCache, setPagesCache] = React.useState<Record<string, any[]>>({});
+    const [loadingPageId, setLoadingPageId] = React.useState<string | null>(null);
+
+    // ── Cerrar calendario al click fuera ─────────────────────────────────────
+    React.useEffect(() => {
+        if (!showCal) return;
+        const handler = (e: MouseEvent) => {
+            if (calContainerRef.current && !calContainerRef.current.contains(e.target as Node)) {
+                setShowCal(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showCal]);
+
+    // ── Helpers de rango ISO ──────────────────────────────────────────────────
+    const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+    const endOfDay = (d: Date) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
+
+    const getISOParams = React.useCallback((): {
+        dateFrom?: string;
+        dateTo?: string;
+    } => {
+        if (dateMode === 'today') {
+            const now = new Date();
+            return {
+                dateFrom: startOfDay(now).toISOString(),
+                dateTo: endOfDay(now).toISOString(),
+            };
+        }
+        if (range.start) {
+            return {
+                dateFrom: startOfDay(range.start).toISOString(),
+                dateTo: endOfDay(range.end ?? range.start).toISOString(),
+            };
+        }
+        return {};
+    }, [dateMode, range]);
+
+    // ── Fetch de sesiones ────────────────────────────────────────────────────
+    const fetchSessions = React.useCallback(async () => {
+        if (!profileId) return;
+        setFetching(true);
+        try {
+            const params = getISOParams();
+            const data = await orchestratorService.getProfileHistoryFiltered(profileId, {
+                ...params,
+                limit: 50,
+            });
+            const mapped: SystemEvent[] = (data.items ?? []).map((s: any) => ({
+                id: s.id.toString(),
+                type: (
+                    s.status === 'closed' ? 'SUCCESS' :
+                        s.status === 'crashed' ? 'ERROR' : 'INFO'
+                ) as SystemEvent['type'],
+                message: [
+                    s.agent_name ?? 'Agent',
+                    s.target_url
+                        ? (() => { try { return new URL(s.target_url).hostname; } catch { return s.target_url; } })()
+                        : 'N/A',
+                    `${s.duration_seconds ?? 0}s`,
+                    `${(s.total_data_mb ?? 0).toFixed(1)} MB`,
+                ].join(' · '),
+                source: `Computer #${s.computer_id}`,
+                timestamp: s.requested_at,
+                meta: {
+                    session_id: s.id,
+                    computer_id: s.computer_id,
+                    target_url: s.target_url,
+                    duration_s: s.duration_seconds,
+                    data_mb: s.total_data_mb,
+                },
+            } as SystemEvent));
+            setSessions(mapped);
+            setTotalCount(data.total ?? mapped.length);
+        } catch {
+            setSessions([]);
+            setTotalCount(0);
+        } finally {
+            setFetching(false);
+        }
+    }, [profileId, getISOParams]);
+
+    // ── Efecto principal: resetear al abrir/cerrar ────────────────────────────
     React.useEffect(() => {
         if (!isOpen) {
+            // Reset al cerrar (sin re-fetch)
+            setDateMode('today');
+            setRange({ start: null, end: null });
+            setShowCal(false);
             setExpandedId(null);
             setPagesCache({});
-        }
-    }, [isOpen]);
-
-    const handleToggle = React.useCallback(async (ev: SystemEvent) => {
-        // Si ya estaba abierto, cerrar
-        if (expandedId === ev.id) {
-            setExpandedId(null);
             return;
         }
+        // Fetch al abrir
+        fetchSessions();
+        setExpandedId(null);
+        setPagesCache({});
+    }, [isOpen, profileId]);  // no depende de fetchSessions para evitar loops
 
+    // ── Efecto secundario: refetch al cambiar filtros ─────────────────────────
+    React.useEffect(() => {
+        if (!isOpen || !profileId) return;
+        if (dateMode === 'range' && !range.start) return;   // esperar selección
+        fetchSessions();
+        setExpandedId(null);
+        setPagesCache({});
+    }, [dateMode, range.start?.toISOString(), range.end?.toISOString()]);   // eslint-disable-line
+
+    // ── Selección de fecha en el calendario ───────────────────────────────────
+    const handleCalSelect = (date: Date) => {
+        setRange(prev => {
+            // Si no hay inicio o ya hay rango completo → nuevo inicio
+            if (!prev.start || prev.end !== null) {
+                return { start: date, end: null };
+            }
+            // Mismo día → día único
+            if (date.toDateString() === prev.start.toDateString()) {
+                setTimeout(() => setShowCal(false), 120);
+                return { start: date, end: date };
+            }
+            // Antes del inicio → intercambiar
+            if (date < prev.start) {
+                return { start: date, end: null };
+            }
+            // Fin válido → cerrar calendario
+            setTimeout(() => setShowCal(false), 120);
+            return { start: prev.start, end: date };
+        });
+        setDateMode('range');
+    };
+
+    // ── Etiqueta del botón "Elige fecha" ──────────────────────────────────────
+    const rangeLabel = React.useMemo(() => {
+        if (!range.start) return 'Elige fecha';
+        const fmt = (d: Date) =>
+            d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        if (!range.end || range.start.toDateString() === range.end.toDateString()) {
+            return fmt(range.start);
+        }
+        return `${fmt(range.start)} – ${fmt(range.end)}`;
+    }, [range]);
+
+    // ── Acordeón de páginas visitadas ────────────────────────────────────────
+    const handleToggle = React.useCallback(async (ev: SystemEvent) => {
+        if (expandedId === ev.id) { setExpandedId(null); return; }
         setExpandedId(ev.id);
-
-        // Si ya tenemos las páginas en caché, no re-fetch
         if (pagesCache[ev.id] !== undefined) return;
 
         const sessionId = (ev as any).meta?.session_id ?? ev.id;
-        setLoadingId(ev.id);
-
+        setLoadingPageId(ev.id);
         try {
             const r = await fetch(`/api/v1/admin/sessions/${sessionId}/events`);
             const d = await r.json();
-
-            // Filtrar solo page_visit y ordenar más recientes primero
             const pages = (d.events ?? [])
                 .filter((e: any) => e.type === 'page_visit' || e.url)
                 .sort((a: any, b: any) =>
-                    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
                 );
-
             setPagesCache(prev => ({ ...prev, [ev.id]: pages }));
         } catch {
             setPagesCache(prev => ({ ...prev, [ev.id]: [] }));
         } finally {
-            setLoadingId(null);
+            setLoadingPageId(null);
         }
     }, [expandedId, pagesCache]);
 
     if (!isOpen || !profileId) return null;
 
+    const hasRange = dateMode === 'range' && !!range.start;
+
+    // ── RENDER ────────────────────────────────────────────────────────────────
     return (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-            <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-lg relative z-[90] p-6 shadow-2xl animate-fade-in-up flex flex-col max-h-[85vh]">
-                <button onClick={onClose} className="absolute right-4 top-4 text-[#666] hover:text-white">
+            {/* Backdrop */}
+            <div
+                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                onClick={onClose}
+            />
+
+            {/* Panel */}
+            <div
+                className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-lg
+                           relative z-[90] shadow-2xl animate-fade-in-up flex flex-col max-h-[88vh]"
+            >
+                {/* ── Botón cerrar ─────────────────────────────────────────── */}
+                <button
+                    onClick={onClose}
+                    className="absolute right-4 top-4 text-[#666] hover:text-white transition-colors z-10"
+                >
                     <X size={20} />
                 </button>
 
-                {/* HEADER */}
-                <div className="flex items-center gap-3 mb-5">
-                    <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
-                        <History size={24} />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-black text-white uppercase tracking-tighter">
-                            Session History
-                        </h3>
-                        <p className="text-xs text-[#555] font-mono">
-                            Perfil #{profileId} · {events.length} sesión{events.length !== 1 ? 'es' : ''}
-                        </p>
-                    </div>
-                </div>
-
-                {/* LIST */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1 mb-5">
-                    {events.length === 0 ? (
-                        <div className="text-center py-12 border border-dashed border-white/5 rounded-2xl">
-                            <History size={20} className="text-[#333] mx-auto mb-2" />
-                            <p className="text-[#444] text-xs font-bold uppercase">
-                                Sin sesiones registradas
+                {/* ── Header ───────────────────────────────────────────────── */}
+                <div className="px-6 pt-6 pb-4 border-b border-white/5 shrink-0">
+                    <div className="flex items-center gap-3 mb-1">
+                        <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-500">
+                            <History size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black text-white uppercase tracking-tighter italic">
+                                Session History
+                            </h3>
+                            <p className="text-[10px] text-[#555] font-mono mt-0.5">
+                                Perfil #{profileId}
+                                {!fetching && (
+                                    <span className="ml-2 text-[#444]">
+                                        · {totalCount} sesión{totalCount !== 1 ? 'es' : ''}
+                                    </span>
+                                )}
                             </p>
                         </div>
-                    ) : (
-                        events.map((ev, i) => {
-                            const isOpen_ = expandedId === ev.id;
-                            const isLoading = loadingId === ev.id;
-                            const pages = pagesCache[ev.id] ?? [];
+                    </div>
 
-                            const statusColor =
-                                ev.type === 'SUCCESS' ? 'bg-[#00ff88]' :
-                                    ev.type === 'ERROR' ? 'bg-red-500' : 'bg-blue-500';
+                    {/* ── Filtro de fechas ─────────────────────────────────── */}
+                    <div className="mt-4" ref={calContainerRef}>
 
-                            const borderColor =
-                                ev.type === 'SUCCESS' ? 'border-[#00ff88]/20' :
-                                    ev.type === 'ERROR' ? 'border-red-500/20' : 'border-white/10';
+                        {/* Píldoras de selección */}
+                        <div
+                            className="inline-flex items-center gap-1 p-1 rounded-full
+                                       bg-black/60 border border-white/[0.07]"
+                        >
+                            {/* Hoy */}
+                            <button
+                                onClick={() => {
+                                    setDateMode('today');
+                                    setRange({ start: null, end: null });
+                                    setShowCal(false);
+                                }}
+                                className={[
+                                    'px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all duration-200',
+                                    dateMode === 'today'
+                                        ? 'bg-white text-black shadow-md'
+                                        : 'text-[#555] hover:text-[#aaa]',
+                                ].join(' ')}
+                            >
+                                Hoy
+                            </button>
 
-                            return (
-                                <div
-                                    key={ev.id}
-                                    className={`rounded-xl border transition-all overflow-hidden ${isOpen_
-                                            ? `${borderColor} bg-white/[0.03]`
-                                            : 'border-white/5 bg-[#0a0a0a] hover:bg-white/[0.04]'
-                                        }`}
-                                >
-                                    {/* ROW — clickeable */}
-                                    <button
-                                        onClick={() => handleToggle(ev)}
-                                        className="w-full text-left p-4 flex items-start gap-3"
-                                    >
-                                        {/* dot */}
-                                        <div className={`shrink-0 size-2.5 rounded-full mt-1.5 ${statusColor}`} />
+                            {/* Elige fecha */}
+                            <button
+                                onClick={() => {
+                                    setDateMode('range');
+                                    setShowCal(v => !v);
+                                }}
+                                className={[
+                                    'px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all duration-200',
+                                    hasRange
+                                        ? 'bg-[#00ff88] text-black shadow-[0_0_12px_rgba(0,255,136,0.3)]'
+                                        : dateMode === 'range'
+                                            ? 'bg-[#00ff88]/15 text-[#00ff88] border border-[#00ff88]/30'
+                                            : 'text-[#555] hover:text-[#aaa]',
+                                ].join(' ')}
+                            >
+                                {rangeLabel}
+                            </button>
+                        </div>
 
-                                        {/* contenido */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-bold text-white truncate">
-                                                {ev.message}
-                                            </p>
-                                            <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                                <span className={`text-[9px] font-black uppercase ${ev.type === 'SUCCESS' ? 'text-[#00ff88]' :
-                                                        ev.type === 'ERROR' ? 'text-red-400' : 'text-blue-400'
-                                                    }`}>
-                                                    {ev.type}
-                                                </span>
-                                                <span className="text-[9px] text-[#555] font-mono">
-                                                    {formatSessionDate(ev.timestamp)}
-                                                </span>
-                                                {(ev as any).meta?.computer_id && (
-                                                    <span className="text-[9px] text-[#444] font-mono uppercase">
-                                                        Computer #{(ev as any).meta.computer_id}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
+                        {/* ── Calendario desplegable ────────────────────── */}
+                        <div
+                            className={[
+                                'overflow-hidden transition-all duration-300 ease-in-out',
+                                showCal ? 'max-h-[340px] opacity-100 mt-3' : 'max-h-0 opacity-0',
+                            ].join(' ')}
+                        >
+                            <div
+                                className="bg-[#080808] border border-white/[0.08] rounded-2xl
+                                           shadow-2xl shadow-black/60 overflow-hidden"
+                            >
+                                <DateRangeCalendar range={range} onSelect={handleCalSelect} />
+                            </div>
+                        </div>
 
-                                        {/* chevron */}
-                                        <ChevronRight
-                                            size={14}
-                                            className={`text-[#444] shrink-0 mt-0.5 transition-transform duration-200 ${isOpen_ ? 'rotate-90 text-[#00ff88]' : ''
-                                                }`}
-                                        />
-                                    </button>
-
-                                    {/* ACCORDION — páginas visitadas */}
-                                    {isOpen_ && (
-                                        <div className="px-4 pb-4 border-t border-white/5">
-                                            <p className="text-[9px] font-black text-[#444] uppercase tracking-widest pt-3 pb-2 flex items-center gap-2">
-                                                <History size={9} />
-                                                Páginas visitadas
-                                                {pages.length > 0 && (
-                                                    <span className="text-[#555]">· {pages.length}</span>
-                                                )}
-                                            </p>
-
-                                            {isLoading ? (
-                                                <div className="flex items-center gap-2 py-3 px-2">
-                                                    <RefreshCw size={11} className="text-[#00ff88] animate-spin" />
-                                                    <p className="text-[10px] text-[#444] animate-pulse">
-                                                        Cargando páginas...
-                                                    </p>
-                                                </div>
-                                            ) : pages.length === 0 ? (
-                                                <div className="py-3 px-2 border border-dashed border-white/5 rounded-lg text-center">
-                                                    <p className="text-[10px] text-[#333] italic">
-                                                        Sin páginas registradas en esta sesión
-                                                    </p>
-                                                </div>
-                                            ) : (
-                                                <div className="bg-[#080808] border border-white/5 rounded-xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
-                                                    {pages.map((page, pi) => {
-                                                        let hostname = page.url;
-                                                        try { hostname = new URL(page.url).hostname; } catch { }
-                                                        const title = page.title || (page.extra?.title) || null;
-
-                                                        return (
-                                                            <div
-                                                                key={page.id ?? pi}
-                                                                className="flex items-center gap-3 px-3 py-2.5 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.03] transition-colors"
-                                                            >
-                                                                {/* índice */}
-                                                                <span className="text-[9px] text-[#333] font-mono w-4 shrink-0 text-right">
-                                                                    {pi + 1}
-                                                                </span>
-
-                                                                {/* contenido */}
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-[11px] font-bold text-[#ccc] truncate">
-                                                                        {hostname}
-                                                                    </p>
-                                                                    {title && (
-                                                                        <p className="text-[9px] text-[#555] truncate mt-0.5">
-                                                                            {title}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-
-                                                                {/* hora */}
-                                                                <span className="text-[9px] text-[#444] font-mono shrink-0">
-                                                                    {formatPageTime(page.timestamp)}
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                        {/* Indicador de rango activo (cuando calendario está cerrado) */}
+                        {hasRange && !showCal && (
+                            <div className="flex items-center justify-between mt-2 px-1">
+                                <div className="flex items-center gap-2">
+                                    <div className="size-1.5 rounded-full bg-[#00ff88] animate-pulse" />
+                                    <span className="text-[9px] text-[#00ff88] font-black uppercase tracking-widest">
+                                        Filtro activo
+                                    </span>
                                 </div>
-                            );
-                        })
-                    )}
+                                <button
+                                    onClick={() => {
+                                        setRange({ start: null, end: null });
+                                        setDateMode('today');
+                                    }}
+                                    className="text-[9px] text-[#555] hover:text-red-400 font-bold
+                                               uppercase tracking-wider transition-colors"
+                                >
+                                    Limpiar ×
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* FOOTER */}
-                <div className="pt-4 border-t border-white/5">
+                {/* ── Lista de sesiones ─────────────────────────────────────── */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-2 min-h-0">
+
+                    {/* Estado: cargando */}
+                    {fetching && (
+                        <div className="space-y-2">
+                            {[1, 2, 3].map(i => (
+                                <div
+                                    key={i}
+                                    className="h-14 bg-white/[0.03] rounded-xl border border-white/5 animate-pulse"
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Estado: sin resultados */}
+                    {!fetching && sessions.length === 0 && (
+                        <div
+                            className="py-14 flex flex-col items-center justify-center
+                                       border border-dashed border-white/5 rounded-2xl"
+                        >
+                            <History size={22} className="text-[#2a2a2a] mb-3" />
+                            <p className="text-[11px] text-[#3a3a3a] font-black uppercase tracking-widest">
+                                Sin sesiones
+                            </p>
+                            <p className="text-[10px] text-[#2a2a2a] mt-1">
+                                {dateMode === 'today'
+                                    ? 'No hay sesiones hoy'
+                                    : 'Prueba con un rango diferente'}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Lista de sesiones */}
+                    {!fetching && sessions.map(ev => {
+                        const isOpenItem = expandedId === ev.id;
+                        const isLoadingPg = loadingPageId === ev.id;
+                        const pages = pagesCache[ev.id] ?? [];
+
+                        const dotColor =
+                            ev.type === 'SUCCESS' ? 'bg-[#00ff88]' :
+                                ev.type === 'ERROR' ? 'bg-red-500' : 'bg-blue-400';
+
+                        const borderColor =
+                            ev.type === 'SUCCESS' ? 'border-[#00ff88]/15' :
+                                ev.type === 'ERROR' ? 'border-red-500/15' : 'border-white/8';
+
+                        return (
+                            <div
+                                key={ev.id}
+                                className={[
+                                    'rounded-xl border transition-all overflow-hidden',
+                                    isOpenItem
+                                        ? `${borderColor} bg-white/[0.025]`
+                                        : 'border-white/5 bg-[#0a0a0a] hover:bg-white/[0.035]',
+                                ].join(' ')}
+                            >
+                                {/* Fila clickeable */}
+                                <button
+                                    onClick={() => handleToggle(ev)}
+                                    className="w-full text-left p-4 flex items-start gap-3"
+                                >
+                                    <div className={`shrink-0 size-2.5 rounded-full mt-1.5 ${dotColor}`} />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-white truncate">
+                                            {ev.message}
+                                        </p>
+                                        <div className="flex items-center gap-2.5 mt-1 flex-wrap">
+                                            <span className={[
+                                                'text-[9px] font-black uppercase tracking-wider',
+                                                ev.type === 'SUCCESS' ? 'text-[#00ff88]' :
+                                                    ev.type === 'ERROR' ? 'text-red-400' : 'text-blue-400',
+                                            ].join(' ')}>
+                                                {ev.type === 'SUCCESS' ? 'cerrada' :
+                                                    ev.type === 'ERROR' ? 'crash' : 'activa'}
+                                            </span>
+                                            <span className="text-[9px] text-[#555] font-mono">
+                                                {_fmtSessionDate(ev.timestamp)}
+                                            </span>
+                                            {(ev as any).meta?.computer_id && (
+                                                <span className="text-[9px] text-[#3a3a3a] font-mono uppercase hidden sm:inline">
+                                                    Computer #{(ev as any).meta.computer_id}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <ChevronRight
+                                        size={14}
+                                        className={[
+                                            'text-[#333] shrink-0 mt-0.5 transition-transform duration-200',
+                                            isOpenItem ? 'rotate-90 text-[#00ff88]' : '',
+                                        ].join(' ')}
+                                    />
+                                </button>
+
+                                {/* Acordeón: páginas visitadas */}
+                                {isOpenItem && (
+                                    <div className="px-4 pb-4 border-t border-white/5">
+                                        <p className="text-[9px] font-black text-[#3a3a3a] uppercase
+                                                      tracking-widest pt-3 pb-2 flex items-center gap-2">
+                                            <History size={9} />
+                                            Páginas visitadas
+                                            {pages.length > 0 && (
+                                                <span className="text-[#2a2a2a]">· {pages.length}</span>
+                                            )}
+                                        </p>
+
+                                        {isLoadingPg ? (
+                                            <div className="flex items-center gap-2 py-3 px-2">
+                                                <RefreshCw size={11} className="text-[#00ff88] animate-spin" />
+                                                <p className="text-[10px] text-[#444] animate-pulse">
+                                                    Cargando páginas...
+                                                </p>
+                                            </div>
+                                        ) : pages.length === 0 ? (
+                                            <div
+                                                className="py-4 border border-dashed border-white/5
+                                                           rounded-lg text-center"
+                                            >
+                                                <p className="text-[10px] text-[#2a2a2a] italic">
+                                                    Sin páginas registradas
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="bg-[#060606] border border-white/5 rounded-xl
+                                                           overflow-hidden max-h-56 overflow-y-auto custom-scrollbar"
+                                            >
+                                                {pages.map((page: any, pi: number) => {
+                                                    let hostname = page.url ?? '';
+                                                    try { hostname = new URL(page.url).hostname; } catch { }
+                                                    const title = page.title || page.extra?.title || null;
+
+                                                    return (
+                                                        <div
+                                                            key={page.id ?? pi}
+                                                            className="flex items-center gap-3 px-3 py-2.5
+                                                                       border-b border-white/[0.04] last:border-0
+                                                                       hover:bg-white/[0.025] transition-colors"
+                                                        >
+                                                            <span className="text-[9px] text-[#2a2a2a] font-mono w-4 shrink-0 text-right">
+                                                                {pi + 1}
+                                                            </span>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-[11px] font-bold text-[#bbb] truncate">
+                                                                    {hostname}
+                                                                </p>
+                                                                {title && (
+                                                                    <p className="text-[9px] text-[#444] truncate mt-0.5">
+                                                                        {title}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-[9px] text-[#3a3a3a] font-mono shrink-0">
+                                                                {_fmtPageTime(page.timestamp)}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* ── Footer ───────────────────────────────────────────────── */}
+                <div className="px-6 pb-6 pt-4 border-t border-white/5 shrink-0">
                     <button
                         onClick={onClose}
-                        className="w-full py-3 bg-[#00ff88]/10 hover:bg-[#00ff88]/20 text-[#00ff88] font-black rounded-xl border border-[#00ff88]/20 text-xs uppercase transition-colors"
+                        className="w-full py-3 bg-[#00ff88]/10 hover:bg-[#00ff88]/15
+                                   text-[#00ff88] font-black rounded-xl border border-[#00ff88]/20
+                                   text-xs uppercase tracking-widest transition-colors"
                     >
                         Cerrar
                     </button>
