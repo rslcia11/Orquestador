@@ -2373,3 +2373,110 @@ export const ProxyHistoryModal = ({
         </div>
     );
 };
+
+// ─── COMPUTER STATUS MODAL ─────────────────────────────────────────────────
+export const ComputerStatusModal = ({
+    isOpen,
+    onClose,
+    nodes,
+    adspowerStatusByComputer,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    nodes: import('../types/orchestratorTypes').ComputerNode[];
+    adspowerStatusByComputer: Record<string, boolean | null>;
+}) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+            <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-lg relative z-[110] shadow-2xl animate-fade-in-up max-h-[80vh] flex flex-col">
+                <button onClick={onClose} className="absolute right-4 top-4 text-[#666] hover:text-white z-10">
+                    <X size={20} />
+                </button>
+
+                <div className="p-6 border-b border-white/5">
+                    <h3 className="text-lg font-black text-white italic tracking-tighter">
+                        Estado de Computadoras
+                    </h3>
+                    <p className="text-[10px] text-[#666] mt-0.5">
+                        Agente y AdsPower por equipo
+                    </p>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3">
+                    {nodes.length === 0 ? (
+                        <div className="py-10 text-center border border-dashed border-white/5 rounded-xl">
+                            <p className="text-[11px] text-[#444] uppercase">Sin computadoras registradas</p>
+                        </div>
+                    ) : nodes.map(node => {
+                        const agentOnline = node.status === 'ONLINE';
+                        const adspowerOk = adspowerStatusByComputer[node.id];
+                        // null = desconocido (agente nunca reportó)
+                        const adspowerUnknown = adspowerOk === null || adspowerOk === undefined;
+
+                        return (
+                            <div key={node.id}
+                                className="p-4 bg-[#0a0a0a] border border-white/5 rounded-xl">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <p className="text-sm font-black text-white">{node.name}</p>
+                                        <p className="text-[9px] text-[#555] font-mono uppercase mt-0.5">
+                                            {node.group} · ID {node.id}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] font-mono text-[#555]">
+                                        CPU {node.cpu}% · RAM {node.ram}%
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    {/* AGENTE */}
+                                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px] font-black uppercase ${agentOnline
+                                            ? 'bg-[#00ff88]/5 border-[#00ff88]/20 text-[#00ff88]'
+                                            : 'bg-red-500/5 border-red-500/20 text-red-400'
+                                        }`}>
+                                        <div className={`size-1.5 rounded-full ${agentOnline ? 'bg-[#00ff88] animate-pulse' : 'bg-red-500'}`} />
+                                        Agente {agentOnline ? 'Online' : 'Offline'}
+                                    </div>
+
+                                    {/* ADSPOWER */}
+                                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px] font-black uppercase ${adspowerUnknown
+                                            ? 'bg-white/5 border-white/10 text-[#555]'
+                                            : adspowerOk
+                                                ? 'bg-[#00ff88]/5 border-[#00ff88]/20 text-[#00ff88]'
+                                                : 'bg-amber-500/5 border-amber-500/20 text-amber-400'
+                                        }`}>
+                                        <div className={`size-1.5 rounded-full ${adspowerUnknown ? 'bg-white/20'
+                                                : adspowerOk ? 'bg-[#00ff88] animate-pulse'
+                                                    : 'bg-amber-500'
+                                            }`} />
+                                        AdsPower {adspowerUnknown ? '...' : adspowerOk ? 'Abierto' : 'Cerrado'}
+                                    </div>
+                                </div>
+
+                                {/* Alerta si agente online pero AdsPower cerrado */}
+                                {agentOnline && !adspowerUnknown && !adspowerOk && (
+                                    <div className="mt-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                                        <p className="text-[9px] text-amber-400 font-bold">
+                                            ⚠️ Agente conectado pero AdsPower no está abierto.
+                                            Abre AdsPower para procesar la cola de perfiles.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="p-6 border-t border-white/5">
+                    <button onClick={onClose}
+                        className="w-full py-3 bg-[#00ff88]/10 text-[#00ff88] font-black rounded-xl border border-[#00ff88]/20 text-xs uppercase hover:bg-[#00ff88]/15 transition-colors">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
