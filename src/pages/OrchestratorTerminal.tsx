@@ -643,7 +643,78 @@ const OrchestratorTerminal: React.FC = () => {
             }, ...prev.slice(0, 18)]);
             return;
         }
+        if (event.type === 'proxy_rotation_waiting_adspower') {
+            setEvents(prev => [{
+                id: `ws-rot-wait-adspower-${Date.now()}`,
+                type: 'WARNING' as const,
+                message: event.message ?? '⏸️ Rotación encolada — esperando AdsPower',
+                source: 'proxy_rotation',
+                timestamp: new Date().toISOString(),
+                meta: {},
+            }, ...prev.slice(0, 18)]);
+            // Mantener el indicador de rotación activo
+            setRotationInProgress(true);
+            return;
+        }
 
+        if (event.type === 'proxy_rotation_waiting') {
+            setEvents(prev => [{
+                id: `ws-rot-wait-agent-${Date.now()}`,
+                type: 'INFO' as const,
+                message: event.message ?? '⏸️ Rotación en espera — sin agentes conectados',
+                source: 'proxy_rotation',
+                timestamp: new Date().toISOString(),
+                meta: {},
+            }, ...prev.slice(0, 18)]);
+            setRotationInProgress(true);
+            return;
+        }
+
+        if (event.type === 'system_event' && event.event === 'proxy_rotation_queue_processing') {
+            setEvents(prev => [{
+                id: 'ws-rotation-active',
+                type: 'INFO' as const,
+                message: event.message ?? '⚡ Procesando rotaciones encoladas...',
+                source: 'proxy_rotation',
+                timestamp: new Date().toISOString(),
+                meta: {},
+            }, ...prev.slice(0, 18)]);
+            return;
+        }
+
+        if (event.type === 'system_event' && event.event === 'proxy_rotation_queue_done') {
+            setEvents(prev => [{
+                id: 'ws-rotation-queue-done',
+                type: 'SUCCESS' as const,
+                message: event.message ?? '✅ Cola de rotaciones procesada',
+                source: 'proxy_rotation',
+                timestamp: new Date().toISOString(),
+                meta: {},
+            }, ...prev.slice(0, 18)]);
+            setRotationInProgress(false);
+            setActiveAction(null);
+            if (autoRefreshRef.current) debouncedFetch();
+            return;
+        }
+        
+        // Actualizar indicador AdsPower en el panel cuando se encola por AdsPower offline
+        if (event.type === 'proxy_rotation_queued') {
+            const cid = event.computer_id?.toString();
+            if (cid) {
+                setAdspowerStatusByComputer(prev => ({ ...prev, [cid]: false }));
+            }
+            setEvents(prev => [{
+                id: `ws-rot-queued-${Date.now()}`,
+                type: 'WARNING' as const,
+                message: `⏸️ ${event.message ?? 'Rotación encolada'} — se ejecutará cuando AdsPower abra`,
+                source: 'proxy_rotation',
+                timestamp: new Date().toISOString(),
+                meta: {},
+            }, ...prev.slice(0, 18)]);
+            // NO apagar rotationInProgress — sigue "activo" esperando
+            return;
+        }
+        
         // ── Session crashed ───────────────────────────────────────────────────
         if (event.type === 'session_crashed') {
             const isProxyError = event.is_proxy_error === true;
