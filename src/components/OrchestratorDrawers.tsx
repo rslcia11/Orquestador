@@ -2047,11 +2047,11 @@ export const SystemDiagnosticModal = ({
             value: f ? `${f.criticalAlerts} críticas` : '—',
             score: healthDetails.alertScore,
         },
-        {
-            label: 'Estado AdsPower',
-            value: f ? (f.adspowerHealthy ? 'Operativo' : 'Offline') : '—',
-            score: healthDetails.adspowerScore,
-        },
+        // {
+        //     label: 'Estado AdsPower',
+        //     value: f ? (f.adspowerHealthy ? 'Operativo' : 'Offline') : '—',
+        //     score: healthDetails.adspowerScore,
+        // },
         {
             label: 'Base de Datos + Redis',
             value: f ? `DB ${f.dbHealthy ? '✓' : '✗'} · Redis ${f.redisHealthy ? '✓' : '✗'}` : '—',
@@ -2079,7 +2079,7 @@ export const SystemDiagnosticModal = ({
                 <div className="space-y-2 mb-5">
                     <p className="text-[10px] font-black text-[#444] uppercase tracking-widest mb-2">Servicios</p>
                     {services.length === 0 ? (
-                        ['Database', 'Redis', 'Proxies', 'Agents', 'AdsPower', 'SOAX'].map(name => (
+                        ['Database', 'Redis', 'Proxies', 'Agents', 'SOAX'].map(name => (
                             <div key={name} className="flex justify-between items-center p-3 bg-white/5 border border-white/5 rounded-xl animate-pulse">
                                 <div className="flex items-center gap-3">
                                     <div className="size-2 rounded-full bg-white/20" />

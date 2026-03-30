@@ -248,6 +248,16 @@ const OrchestratorTerminal: React.FC = () => {
         return { ok: true };
     }, [nodes, adspowerStatusByComputer]);
 
+    const handleOpenComputerStatus = useCallback(async () => {
+        setShowComputerStatus(true);  // ← lo que debería hacer
+        // Forzar consulta inmediata de AdsPower en todos los agentes
+        try {
+            await fetch('/api/v1/agent/broadcast-check-adspower', { method: 'POST' });
+        } catch {
+            // Silencioso — el modal igual mostrará el estado cacheado
+        }
+    }, []);
+
     // Helper para registrar bloqueo en timeline
     const reportBlocked = useCallback((reason: string) => {
         setEvents(prev => [{
@@ -468,6 +478,32 @@ const OrchestratorTerminal: React.FC = () => {
                 meta: {},
             }, ...prev.slice(0, 18)]);
             if (autoRefreshRef.current) fetchData();
+            return;
+        }
+
+        if (event.type === 'profile_delete_queued') {
+            setEvents(prev => [{
+                id: `ws-del-queued-${Date.now()}`,
+                type: 'INFO' as const,
+                message: `⏸️ Eliminación de AdsPower encolada — se procesará cuando AdsPower esté disponible`,
+                source: 'admin-panel',
+                timestamp: new Date().toISOString(),
+                meta: {},
+            }, ...prev.slice(0, 18)]);
+            return;
+        }
+
+        if (event.type === 'profile_delete_result' && event.status === 'deleted') {
+            const name = event.name ?? `Perfil #${event.profile_id}`;
+            // Confirmar que la eliminación pendiente se completó
+            setEvents(prev => [{
+                id: `ws-del-done-${Date.now()}`,
+                type: 'SUCCESS' as const,
+                message: `✅ Perfil eliminado de AdsPower correctamente`,
+                source: 'admin-panel',
+                timestamp: new Date().toISOString(),
+                meta: {},
+            }, ...prev.slice(0, 18)]);
             return;
         }
 
@@ -696,7 +732,7 @@ const OrchestratorTerminal: React.FC = () => {
             if (autoRefreshRef.current) debouncedFetch();
             return;
         }
-        
+
         // Actualizar indicador AdsPower en el panel cuando se encola por AdsPower offline
         if (event.type === 'proxy_rotation_queued') {
             const cid = event.computer_id?.toString();
@@ -714,7 +750,7 @@ const OrchestratorTerminal: React.FC = () => {
             // NO apagar rotationInProgress — sigue "activo" esperando
             return;
         }
-        
+
         // ── Session crashed ───────────────────────────────────────────────────
         if (event.type === 'session_crashed') {
             const isProxyError = event.is_proxy_error === true;
@@ -1075,8 +1111,30 @@ const OrchestratorTerminal: React.FC = () => {
             desc: rotationInProgress ? '⏳ Rotando proxies...' : 'Rotar proxies lentos ahora',
             icon: <RefreshCw size={24} className={rotationInProgress ? 'animate-spin' : ''} />,
             color: rotationInProgress ? '#666' : '#3b82f6',
-            fn: rotationInProgress ? () => { } : handleRotateProxies,
             disabled: rotationInProgress,
+            fn: rotationInProgress ? () => { } : async () => {
+                // ── Validar agente antes de rotar ────────────────────────────
+                const node = selectedComputerId ? nodes.find(n => n.id === selectedComputerId) : null;
+                if (!node || node.status !== 'ONLINE') {
+                    reportBlocked('❌ Agente offline — inicia el agente antes de rotar proxies');
+                    return;
+                }
+                // ── Advertir si AdsPower está cerrado, pero NO bloquear ──────
+                // La rotación se puede encolar y ejecutar cuando AdsPower abra
+                const adspowerOk = selectedComputerId
+                    ? adspowerStatusByComputer[selectedComputerId]
+                    : undefined;
+                if (adspowerOk === false) {
+                    const ok = window.confirm(
+                        '⚠️ AdsPower no está abierto en el agente.\n\n' +
+                        'La rotación se encolará y se ejecutará automáticamente cuando abras AdsPower.\n\n' +
+                        '¿Continuar de todas formas?'
+                    );
+                    if (!ok) return;
+                }
+                // ────────────────────────────────────────────────────────────
+                await handleRotateProxies();
+            },
         },
         {
             id: 'logs',
@@ -1174,7 +1232,7 @@ const OrchestratorTerminal: React.FC = () => {
                                 services={services}
                                 onServiceClick={(svc) => {
                                     if (svc.name === 'AdsPower' || svc.name === 'Agents') {
-                                        setShowComputerStatus(true);
+                                        handleOpenComputerStatus();
                                     } else {
                                         setSelectedService(svc);
                                     }
@@ -1281,8 +1339,8 @@ const OrchestratorTerminal: React.FC = () => {
                                             {/* Agente */}
                                             <div className="flex items-center gap-1.5">
                                                 <div className={`size-2 rounded-full ${localNode?.status === 'ONLINE'
-                                                        ? 'bg-[#00ff88] animate-pulse'
-                                                        : selectedComputerId ? 'bg-red-500' : 'bg-amber-500 animate-pulse'
+                                                    ? 'bg-[#00ff88] animate-pulse'
+                                                    : selectedComputerId ? 'bg-red-500' : 'bg-amber-500 animate-pulse'
                                                     }`} />
                                                 <span className="text-[9px] text-[#555] font-mono">
                                                     {!localNode ? 'Detectando...' : localNode.status === 'ONLINE' ? localNode.name : `${localNode.name} — offline`}
@@ -1291,12 +1349,12 @@ const OrchestratorTerminal: React.FC = () => {
                                             {/* AdsPower — solo si hay agente */}
                                             {localNode?.status === 'ONLINE' && (
                                                 <button
-                                                    onClick={() => setShowComputerStatus(true)}
+                                                    onClick={() => handleOpenComputerStatus()}
                                                     className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-black uppercase transition-colors ${localAdspowerOk === true
-                                                            ? 'bg-[#00ff88]/10 border-[#00ff88]/20 text-[#00ff88] hover:bg-[#00ff88]/15'
-                                                            : localAdspowerOk === false
-                                                                ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/15 animate-pulse'
-                                                                : 'bg-white/5 border-white/10 text-[#555] hover:bg-white/10'
+                                                        ? 'bg-[#00ff88]/10 border-[#00ff88]/20 text-[#00ff88] hover:bg-[#00ff88]/15'
+                                                        : localAdspowerOk === false
+                                                            ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/15 animate-pulse'
+                                                            : 'bg-white/5 border-white/10 text-[#555] hover:bg-white/10'
                                                         }`}
                                                     title="Ver estado de computadoras"
                                                 >
@@ -1393,7 +1451,7 @@ const OrchestratorTerminal: React.FC = () => {
                                                 <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden">
                                                     <div className="grid grid-cols-12 gap-4 p-3 border-b border-white/5 text-[9px] font-black text-[#666] uppercase tracking-wider pl-4">
                                                         <div className="col-span-3">Perfil</div>
-                                                        <div className="col-span-2 hidden md:block">Proxy</div>
+                                                        <div className="col-span-2 hidden md:block">Adspower ID</div>
                                                         <div className="col-span-2 hidden md:block">Cookies</div>
                                                         <div className="col-span-2">Score</div>
                                                         <div className="col-span-2 hidden md:block">Última Acción</div>

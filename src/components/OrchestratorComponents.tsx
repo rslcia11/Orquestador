@@ -379,32 +379,31 @@ export const HealthOverview = ({
             label: 'Nodos',
             score: healthDetails.nodeScore,
             detail: f ? `${f.nodesOnline}/${f.nodesTotal} online` : '—',
-            color: healthDetails.nodeScore > 80 ? '#00ff88' : healthDetails.nodeScore > 50 ? '#f59e0b' : '#ef4444',
+            color: f && f.nodesOnline > 0 ? '#00ff88'
+                : f && f.nodesTotal > 0 ? '#ef4444' : '#666',
         },
         {
             label: 'Proxies SOAX',
             score: healthDetails.proxyScore,
             detail: f ? `${Math.round(f.proxySuccessRate)}% éxito · ${f.avgProxyLatency}ms` : '—',
-            color: healthDetails.proxyScore > 80 ? '#00ff88' : healthDetails.proxyScore > 50 ? '#f59e0b' : '#ef4444',
+            color: healthDetails.proxyScore > 80 ? '#00ff88'
+                : healthDetails.proxyScore > 50 ? '#f59e0b' : '#ef4444',
         },
         {
             label: 'Alertas',
             score: healthDetails.alertScore,
             detail: f ? `${f.criticalAlerts} críticas · ${f.warningAlerts} warns` : '—',
-            color: healthDetails.alertScore > 80 ? '#00ff88' : healthDetails.alertScore > 50 ? '#f59e0b' : '#ef4444',
-        },
-        {
-            label: 'AdsPower',
-            score: healthDetails.adspowerScore,
-            detail: f ? (f.adspowerHealthy ? 'Operativo' : 'Sin conexión') : '—',
-            color: healthDetails.adspowerScore === 100 ? '#00ff88' : '#ef4444',
+            color: healthDetails.alertScore > 80 ? '#00ff88'
+                : healthDetails.alertScore > 50 ? '#f59e0b' : '#ef4444',
         },
         {
             label: 'Infraestructura',
             score: healthDetails.infraScore,
             detail: f ? `DB ${f.dbHealthy ? '✓' : '✗'} · Redis ${f.redisHealthy ? '✓' : '✗'}` : '—',
-            color: healthDetails.infraScore > 80 ? '#00ff88' : healthDetails.infraScore > 50 ? '#f59e0b' : '#ef4444',
+            color: healthDetails.infraScore === 100 ? '#00ff88'
+                : healthDetails.infraScore > 50 ? '#f59e0b' : '#ef4444',
         },
+        // AdsPower eliminado — se muestra en el Panel de Agente
     ] : [];
 
     return (
@@ -418,9 +417,8 @@ export const HealthOverview = ({
                     <div className="absolute right-0 top-full mt-2 w-52 p-3 bg-black border border-white/10 rounded-lg z-50 hidden group-hover:block shadow-xl">
                         <p className="text-[10px] text-[#ccc] leading-relaxed font-bold mb-1">5 factores ponderados:</p>
                         <p className="text-[9px] text-[#888] space-y-0.5">
-                            Nodos 30% · Proxies 25%<br />
-                            Alertas 20% · AdsPower 15%<br />
-                            Infraestructura 10%
+                            Nodos 35% · Proxies 30%<br />
+                            Alertas 20% · Infraestructura 15%
                         </p>
                     </div>
                 </div>
@@ -577,7 +575,7 @@ const EXPECTED_SERVICES = [
     { name: 'Redis', status: 'UNKNOWN', latency: 0 },
     { name: 'Proxies', status: 'UNKNOWN', latency: 0 },
     { name: 'Agents', status: 'UNKNOWN', latency: 0 },
-    { name: 'AdsPower', status: 'UNKNOWN', latency: 0 },
+    // { name: 'AdsPower', status: 'UNKNOWN', latency: 0 },
     { name: 'SOAX', status: 'UNKNOWN', latency: 0 },
 ];
 

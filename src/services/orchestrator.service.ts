@@ -458,7 +458,7 @@ function mapServices(components: any, proxyStats?: any, soaxCities: string[] = [
     { name: 'Redis',    status: components?.redis?.healthy     ? 'ONLINE' : 'DEGRADED', latency: 0,          lastCheck: 'now' },
     { name: 'Proxies',  status: proxiesOnline                  ? 'ONLINE' : 'DEGRADED', latency: avgLatency, lastCheck: 'now' },
     { name: 'Agents',   status: agentsOnline                   ? 'ONLINE' : 'DEGRADED', latency: 0,          lastCheck: 'now' },
-    { name: 'AdsPower', status: components?.adspower?.healthy  ? 'ONLINE' : 'DEGRADED', latency: 0,          lastCheck: 'now' },
+    // { name: 'AdsPower', status: components?.adspower?.healthy  ? 'ONLINE' : 'DEGRADED', latency: 0,          lastCheck: 'now' },
     { name: 'SOAX',     status: soaxOnline                     ? 'ONLINE' : 'DEGRADED', latency: 0,          lastCheck: 'now' },
   ];
 }
@@ -495,34 +495,32 @@ function _computeHealth(
   components: any = {}, proxyStats: any = {},
   activeSessions = 0,
 ): { score: number; details: import('../types/orchestratorTypes').HealthDetails } {
- 
-  // 1. NODE SCORE (30%)
+
+  // 1. NODE SCORE (35%) — verde si hay AL MENOS 1 online
   const nodesOnline = nodes.filter(n => n.status === 'ONLINE').length;
   const nodesTotal  = nodes.length;
   const nodeScore =
-    nodesTotal === 0 ? 0
+    nodesTotal  === 0      ? 0
     : nodesOnline === nodesTotal ? 100
-    : Math.max(50, Math.round((nodesOnline / nodesTotal) * 100));
- 
-  // 2. PROXY SCORE (25%)
-  // Ahora el backend devuelve avg_success_rate real (0-100).
-  // Fallback: si no hay datos aún, calcular desde active/total.
-  const totalProxies   = proxyStats?.total ?? 0;
-  const activeProxies  = proxyStats?.active ?? 0;
+    : nodesOnline  > 0     ? Math.max(60, Math.round(nodesOnline / nodesTotal * 100))
+    : 0;
+
+  // 2. PROXY SCORE (30%) — usa ventana reciente desde BD
+  const totalProxies  = proxyStats?.total  ?? 0;
+  const activeProxies = proxyStats?.active ?? 0;
   const avgSuccessRate: number =
     proxyStats?.avg_success_rate != null
       ? Number(proxyStats.avg_success_rate)
-      : totalProxies > 0 ? Math.round(activeProxies / totalProxies * 100) : 50;
- 
+      : totalProxies > 0 ? Math.round(activeProxies / totalProxies * 100) : 100;
+
   const avgProxyLatency = Math.round(proxyStats?.avg_latency_ms ?? 0);
-  // Penalización por latencia: escalonada
   const latencyPenalty =
     avgProxyLatency > 2000 ? 30
     : avgProxyLatency > 1500 ? 20
     : avgProxyLatency > 800  ? 10
     : 0;
   const proxyScore = Math.max(0, Math.min(100, Math.round(avgSuccessRate) - latencyPenalty));
- 
+
   // 3. ALERT SCORE (20%)
   const criticalAlerts = (alerts ?? []).filter(
     (a: any) => (a.severity === 'critical' || a.severity === 'error')
@@ -530,24 +528,23 @@ function _computeHealth(
   ).length;
   const warningAlerts = (alerts ?? []).filter((a: any) => a.severity === 'warning').length;
   const alertScore    = Math.max(0, 100 - criticalAlerts * 25 - warningAlerts * 8);
- 
-  // 4. ADSPOWER SCORE (15%)
-  const adspowerHealthy = !!components?.adspower?.healthy;
-  const adspowerScore   = adspowerHealthy ? 100 : 0;
- 
-  // 5. INFRA SCORE (10%) — DB + Redis
+
+  // 4. INFRA SCORE (15%) — DB + Redis (AdsPower eliminado del score global)
   const dbHealthy    = !!components?.database?.healthy;
   const redisHealthy = !!components?.redis?.healthy;
   const infraScore   = Math.round(((dbHealthy ? 1 : 0) + (redisHealthy ? 1 : 0)) / 2 * 100);
- 
+
+  // AdsPower: se mantiene en details para el Panel de Agente, pero NO pesa en el score
+  const adspowerHealthy = !!components?.adspower?.healthy;
+  const adspowerScore   = adspowerHealthy ? 100 : 0;
+
   const score = Math.max(0, Math.min(100, Math.round(
-    nodeScore     * 0.30 +
-    proxyScore    * 0.25 +
-    alertScore    * 0.20 +
-    adspowerScore * 0.15 +
-    infraScore    * 0.10
+    nodeScore  * 0.35 +
+    proxyScore * 0.30 +
+    alertScore * 0.20 +
+    infraScore * 0.15
   )));
- 
+
   return {
     score,
     details: {
@@ -563,27 +560,22 @@ function _computeHealth(
     },
   };
 }
-// ─── REEMPLAZAR _extractRisks ────────────────────────────────────────────────
 
 function _extractRisks(nodes: any[], alerts: any[], components: any = {}, proxyStats: any = {}): string[] {
   const risks: string[] = [];
 
-  // Nodos problemáticos
   nodes.filter(n => n.cpu > 80).forEach(n => risks.push(`CPU alta: ${n.name} (${n.cpu}%)`));
   nodes.filter(n => n.status !== 'ONLINE').forEach(n => risks.push(`Offline: ${n.name}`));
 
-  // Proxies
   const successRate = proxyStats?.avg_success_rate ?? 100;
   if (successRate < 70) risks.push(`Proxies degradados — éxito: ${Math.round(successRate)}%`);
   const latency = proxyStats?.avg_latency_ms ?? 0;
   if (latency > 400) risks.push(`Latencia proxy alta: ${Math.round(latency)}ms`);
 
-  // Servicios
-  if (!components?.adspower?.healthy) risks.push('AdsPower no disponible en agente');
+  // AdsPower eliminado de riesgos globales — se muestra en el Panel de Agente
   if (!components?.database?.healthy) risks.push('Base de datos con errores');
   if (!components?.redis?.healthy)    risks.push('Redis no responde');
 
-  // Alertas críticas
   alerts.filter(a => a.severity === 'critical').forEach(a => risks.push(a.title ?? a.type ?? 'Alerta crítica'));
 
   return risks.slice(0, 6);
