@@ -2173,54 +2173,6 @@ export const SystemDiagnosticModal = ({
 };
 // ─── RESOURCE DETAIL MODAL ───────────────────────────────────────────────────
 
-export const ResourceDetailModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-            <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-md relative z-[110] p-6 shadow-2xl animate-fade-in-up">
-                <button onClick={onClose} className="absolute right-4 top-4 text-[#666] hover:text-white"><X size={20} /></button>
-                <div className="flex items-center gap-4 mb-6">
-                    <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl"><Cpu size={24} /></div>
-                    <div>
-                        <h3 className="text-xl font-black text-white italic tracking-tighter">Monitor de Recursos</h3>
-                        <p className="text-xs text-[#666]">Consumo actual de hardware</p>
-                    </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                    {[
-                        { label: 'CPU Total', value: '42%', color: 'text-[#00ff88]' },
-                        { label: 'RAM Uso', value: '12GB', color: 'text-blue-500' },
-                        { label: 'Red', value: '45mbps', color: 'text-amber-500' },
-                    ].map(m => (
-                        <div key={m.label} className="p-4 bg-[#0a0a0a] border border-white/5 rounded-xl text-center">
-                            <p className="text-[10px] font-bold text-[#666] uppercase mb-1">{m.label}</p>
-                            <p className={`text-2xl font-black ${m.color}`}>{m.value}</p>
-                        </div>
-                    ))}
-                </div>
-                <h4 className="text-[10px] font-black text-[#666] uppercase mb-3">Mayores Consumidores</h4>
-                <div className="space-y-2 mb-6">
-                    {[
-                        { name: 'Node-01 (Main)', value: '85% CPU', color: 'text-red-500' },
-                        { name: 'Node-04 (Incubator)', value: '60% CPU', color: 'text-amber-500' },
-                        { name: 'DB Server', value: '15% CPU', color: 'text-[#00ff88]' },
-                    ].map(item => (
-                        <div key={item.name} className="flex justify-between items-center p-2 border-b border-white/5 text-xs text-[#ccc]">
-                            <span>{item.name}</span>
-                            <span className={`font-mono ${item.color}`}>{item.value}</span>
-                        </div>
-                    ))}
-                </div>
-                <button onClick={onClose} className="w-full py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl border border-white/5 text-xs uppercase transition-colors">
-                    Optimizar Memoria (GC)
-                </button>
-            </div>
-        </div>
-    );
-};
-
 // ─── JOB QUEUE MODAL ─────────────────────────────────────────────────────────
 
 export const JobQueueModal = ({ isOpen, onClose, queue = 0, running = 0, failed = 0, pendingProfiles = [] }: {

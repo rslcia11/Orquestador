@@ -26,7 +26,7 @@ import {
     NodeItemDrawer, AlertModal, SessionHistoryModal,
     DashKPIModal,
     SecurityCheckModal, SessionStartModal, CreateProfileModal, EventDetailModal,
-    SystemDiagnosticModal, ResourceDetailModal, JobQueueModal,
+    SystemDiagnosticModal, JobQueueModal,
     ProxyHistoryModal,
     ComputerStatusModal,   // ← importar el nuevo modal
 } from '@/components/OrchestratorDrawers';
@@ -1508,7 +1508,6 @@ const OrchestratorTerminal: React.FC = () => {
                     services={services}
                     healthDetails={stats?.healthDetails}
                 />
-                <ResourceDetailModal isOpen={showResourceDetail} onClose={() => setShowResourceDetail(false)} />
                 <JobQueueModal
                     isOpen={showJobQueue}
                     onClose={() => setShowJobQueue(false)}

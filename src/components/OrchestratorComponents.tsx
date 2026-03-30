@@ -323,7 +323,6 @@ export const MiniCapacityPanel = ({ cpu, ram, net, onClick }: any) => (
             {[
                 { label: 'CPU', val: cpu, color: 'bg-[#00ff88]' },
                 { label: 'RAM', val: ram, color: 'bg-blue-500' },
-                { label: 'RED/LAT', val: net, color: 'bg-amber-500' }
             ].map(m => (
                 <div key={m.label}>
                     <div className="flex justify-between text-[9px] font-bold text-[#ccc] mb-1">
